@@ -12,3 +12,9 @@ Session.vim
 .vs
 Release
 Debug
+ALL_BUILD.*
+INSTALL.*
+ZERO_CHECK.*
+cmake_install.cmake
+CMakeCache
+CMakeFiles
