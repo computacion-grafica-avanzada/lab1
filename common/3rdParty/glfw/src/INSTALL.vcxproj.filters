@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\Andres\Facultad\Computación Gráfica Avanzada\Primer Obligatorio\lab1\CMakeFiles\cba97034bf7b219fd0908eef5e1074f1\INSTALL_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{B97085DF-0E94-311A-AC87-58E6DA99572B}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

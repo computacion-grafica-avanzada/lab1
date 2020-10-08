@@ -1,0 +1,30 @@
+# CMake generation dependency list for this directory.
+C:/Program Files/CMake/share/cmake-3.18/Modules/CMakeCInformation.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/CMakeCXXInformation.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/CMakeCommonLanguageInclude.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/CMakeGenericSystem.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/CMakeInitializeConfigs.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/CMakeLanguageInformation.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/CMakeRCInformation.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/CMakeSystemSpecificInformation.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/CMakeSystemSpecificInitialize.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/Compiler/CMakeCommonCompilerMacros.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/Compiler/MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/Compiler/MSVC-CXX.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/FindCUDA.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/FindCUDA/select_compute_arch.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/FindPackageHandleStandardArgs.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/FindPackageMessage.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/Platform/Windows-MSVC-C.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/Platform/Windows-MSVC-CXX.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/Platform/Windows-MSVC.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/Platform/Windows.cmake
+C:/Program Files/CMake/share/cmake-3.18/Modules/Platform/WindowsPaths.cmake
+D:/Andres/Facultad/Computación Gráfica Avanzada/Primer Obligatorio/lab1/CMakeFiles/3.18.2/CMakeCCompiler.cmake
+D:/Andres/Facultad/Computación Gráfica Avanzada/Primer Obligatorio/lab1/CMakeFiles/3.18.2/CMakeCXXCompiler.cmake
+D:/Andres/Facultad/Computación Gráfica Avanzada/Primer Obligatorio/lab1/CMakeFiles/3.18.2/CMakeRCCompiler.cmake
+D:/Andres/Facultad/Computación Gráfica Avanzada/Primer Obligatorio/lab1/CMakeFiles/3.18.2/CMakeSystem.cmake
+D:/Andres/Facultad/Computación Gráfica Avanzada/Primer Obligatorio/lab1/CMakeLists.txt
+D:/Andres/Facultad/Computación Gráfica Avanzada/Primer Obligatorio/lab1/common/gdt/cmake/FindOptiX.cmake
+D:/Andres/Facultad/Computación Gráfica Avanzada/Primer Obligatorio/lab1/common/gdt/cmake/configure_build_type.cmake
+D:/Andres/Facultad/Computación Gráfica Avanzada/Primer Obligatorio/lab1/common/gdt/cmake/configure_optix.cmake

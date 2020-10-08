@@ -9,3 +9,6 @@ build
 Session.vim
 /models/*
 *.swp
+.vs
+Release
+Debug

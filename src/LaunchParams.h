@@ -20,23 +20,33 @@
 #include "optix7.h"
 
 namespace osc {
-  using namespace gdt;
-  
-  struct LaunchParams
-  {
-    struct {
-      uint32_t *colorBuffer;
-      vec2i     size;
-    } frame;
-    
-    struct {
-      vec3f position;
-      vec3f direction;
-      vec3f horizontal;
-      vec3f vertical;
-    } camera;
+	using namespace gdt;
 
-    OptixTraversableHandle traversable;
-  };
+	struct TriangleMeshSBTData {
+		vec3f  color;
+		vec3f* vertex;
+		vec3i* index;
+	};
+
+	struct LaunchParams
+	{
+		struct {
+			uint32_t* colorBuffer;
+			vec2i     size;
+		} frame;
+
+		struct {
+			vec3f position;
+			vec3f direction;
+			vec3f horizontal;
+			vec3f vertical;
+		} camera;
+
+		struct {
+			vec3f direction;
+		} light;
+
+		OptixTraversableHandle traversable;
+	};
 
 } // ::osc

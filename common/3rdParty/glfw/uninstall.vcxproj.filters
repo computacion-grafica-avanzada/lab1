@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\Andres\Facultad\Computación Gráfica Avanzada\Primer Obligatorio\lab1\CMakeFiles\bd1255089a99b21dc8b6fe3831ddf482\uninstall.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\Andres\Facultad\Computación Gráfica Avanzada\Primer Obligatorio\lab1\common\3rdParty\glfw\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="D:\Andres\Facultad\Computación Gráfica Avanzada\Primer Obligatorio\lab1\common\3rdParty\glfw\CMakeFiles\uninstall" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{B97085DF-0E94-311A-AC87-58E6DA99572B}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
