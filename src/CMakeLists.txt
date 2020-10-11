@@ -24,8 +24,20 @@ add_executable(src
   ${embedded_ptx_code}
   optix7.h
   CUDABuffer.h
+  Light.h
+  Light.cpp
   SampleRenderer.h
   SampleRenderer.cpp
+  photonMap/Photon.h
+  photonMap/Photon.cpp
+  photonMap/PhotonMap.h
+  photonMap/PhotonMap.cpp
+  photonMap/PhotonsIterator.h
+  photonMap/Vector3D.h
+  photonMap/Vector3D.cpp
+  photonMap/RGBA.cpp
+  photonMap/RGBA.h
+  Model.cpp
   main.cpp
   )
 
