@@ -19,155 +19,139 @@
 // our own classes, partly shared between host and device
 #include "CUDABuffer.h"
 #include "LaunchParams.h"
-#include "gdt/math/AffineSpace.h"
+#include "Model.h"
+#include "Light.h"
 
 /*! \namespace osc - Optix Siggraph Course */
 namespace osc {
 
-	struct Camera {
-		/*! camera position - *from* where we are looking */
-		vec3f from;
-		/*! which point we are looking *at* */
-		vec3f at;
-		/*! general up-vector */
-		vec3f up;
-	};
+    struct Camera {
+        /*! camera position - *from* where we are looking */
+        vec3f from;
+        /*! which point we are looking *at* */
+        vec3f at;
+        /*! general up-vector */
+        vec3f up;
+    };
 
-	struct Light {
-		/*! light position */
-		vec3f direction;
-	};
+    /*! a sample OptiX-7 renderer that demonstrates how to set up
+        context, module, programs, pipeline, SBT, etc, and perform a
+        valid launch that renders some pixel (using a simple test
+        pattern, in this case */
+    class SampleRenderer
+    {
+        // ------------------------------------------------------------------
+        // publicly accessible interface
+        // ------------------------------------------------------------------
+    public:
+        /*! constructor - performs all setup, including initializing
+          optix, creates module, pipeline, programs, SBT, etc. */
+        SampleRenderer(const Model* model);
 
-	/*! a simple indexed triangle mesh that our sample renderer will
-		render */
-	struct TriangleMesh {
-		/*! add a unit cube (subject to given xfm matrix) to the current
-			triangleMesh */
-		void addUnitCube(const affine3f& xfm);
+        /*! render one frame */
+        void render();
 
-		//! add aligned cube aith front-lower-left corner and size
-		void addCube(const vec3f& center, const vec3f& size);
+        /*! resize frame buffer to given resolution */
+        void resize(const vec2i& newSize);
 
-		std::vector<vec3f> vertex;
-		std::vector<vec3i> index;
-		vec3f              color;
-	};
+        /*! download the rendered color buffer */
+        void downloadPixels(uint32_t h_pixels[]);
 
-	/*! a sample OptiX-7 renderer that demonstrates how to set up
-		context, module, programs, pipeline, SBT, etc, and perform a
-		valid launch that renders some pixel (using a simple test
-		pattern, in this case */
-	class SampleRenderer
-	{
-		// ------------------------------------------------------------------
-		// publicly accessible interface
-		// ------------------------------------------------------------------
-	public:
-		/*! constructor - performs all setup, including initializing
-		  optix, creates module, pipeline, programs, SBT, etc. */
-		SampleRenderer(const std::vector<TriangleMesh>& meshes);
+        /*! set camera to render with */
+        void setCamera(const Camera& camera);
 
-		/*! render one frame */
-		void render();
+        /*! set camera to render with */
+        void setLights(const std::vector<Light*> lights);
+    protected:
+        // ------------------------------------------------------------------
+        // internal helper functions
+        // ------------------------------------------------------------------
 
-		/*! resize frame buffer to given resolution */
-		void resize(const vec2i& newSize);
+        /*! helper function that initializes optix and checks for errors */
+        void initOptix();
 
-		/*! download the rendered color buffer */
-		void downloadPixels(uint32_t h_pixels[]);
+        /*! creates and configures a optix device context (in this simple
+          example, only for the primary GPU device) */
+        void createContext();
 
-		/*! set camera to render with */
-		void setCamera(const Camera& camera);
+        /*! creates the module that contains all the programs we are going
+          to use. in this simple example, we use a single module from a
+          single .cu file, using a single embedded ptx string */
+        void createModule();
 
-		/*! set light to generate the photon map */
-		void setLight(const Light& light);
+        /*! does all setup for the raygen program(s) we are going to use */
+        void createRaygenPrograms();
 
-	protected:
-		// ------------------------------------------------------------------
-		// internal helper functions
-		// ------------------------------------------------------------------
+        /*! does all setup for the miss program(s) we are going to use */
+        void createMissPrograms();
 
-		/*! helper function that initializes optix and checks for errors */
-		void initOptix();
+        /*! does all setup for the hitgroup program(s) we are going to use */
+        void createHitgroupPrograms();
 
-		/*! creates and configures a optix device context (in this simple
-		  example, only for the primary GPU device) */
-		void createContext();
+        /*! assembles the full pipeline of all programs */
+        void createPipeline();
 
-		/*! creates the module that contains all the programs we are going
-		  to use. in this simple example, we use a single module from a
-		  single .cu file, using a single embedded ptx string */
-		void createModule();
+        /*! constructs the shader binding table */
+        void buildSBT();
 
-		/*! does all setup for the raygen program(s) we are going to use */
-		void createRaygenPrograms();
+        /*! build an acceleration structure for the given triangle mesh */
+        OptixTraversableHandle buildAccel();
 
-		/*! does all setup for the miss program(s) we are going to use */
-		void createMissPrograms();
+    protected:
+        /*! @{ CUDA device context and stream that optix pipeline will run
+            on, as well as device properties for this device */
+        CUcontext          cudaContext;
+        CUstream           stream;
+        cudaDeviceProp     deviceProps;
+        /*! @} */
 
-		/*! does all setup for the hitgroup program(s) we are going to use */
-		void createHitgroupPrograms();
+        //! the optix context that our pipeline will run in.
+        OptixDeviceContext optixContext;
 
-		/*! assembles the full pipeline of all programs */
-		void createPipeline();
+        /*! @{ the pipeline we're building */
+        OptixPipeline               pipeline;
+        OptixPipelineCompileOptions pipelineCompileOptions;
+        OptixPipelineLinkOptions    pipelineLinkOptions;
+        /*! @} */
 
-		/*! constructs the shader binding table */
-		void buildSBT();
+        /*! @{ the module that contains out device programs */
+        OptixModule                 module;
+        OptixModuleCompileOptions   moduleCompileOptions;
+        /* @} */
 
-		/*! build an acceleration structure for the given triangle mesh */
-		OptixTraversableHandle buildAccel();
+        /*! vector of all our program(group)s, and the SBT built around
+            them */
+        std::vector<OptixProgramGroup> raygenPGs;
+        CUDABuffer raygenRecordsBuffer;
+        std::vector<OptixProgramGroup> missPGs;
+        CUDABuffer missRecordsBuffer;
+        std::vector<OptixProgramGroup> hitgroupPGs;
+        CUDABuffer hitgroupRecordsBuffer;
+        OptixShaderBindingTable sbt = {};
 
-	protected:
-		/*! @{ CUDA device context and stream that optix pipeline will run
-			on, as well as device properties for this device */
-		CUcontext          cudaContext;
-		CUstream           stream;
-		cudaDeviceProp     deviceProps;
-		/*! @} */
+        /*! @{ our launch parameters, on the host, and the buffer to store
+            them on the device */
+        LaunchParams launchParams;
+        CUDABuffer   launchParamsBuffer;
+        /*! @} */
 
-		//! the optix context that our pipeline will run in.
-		OptixDeviceContext optixContext;
+        CUDABuffer colorBuffer;
 
-		/*! @{ the pipeline we're building */
-		OptixPipeline               pipeline;
-		OptixPipelineCompileOptions pipelineCompileOptions;
-		OptixPipelineLinkOptions    pipelineLinkOptions;
-		/*! @} */
+        /*! the camera we are to render with. */
+        Camera lastSetCamera;
 
-		/*! @{ the module that contains out device programs */
-		OptixModule                 module;
-		OptixModuleCompileOptions   moduleCompileOptions;
-		/* @} */
+        /*! the lights we are to render with. */
+        std::vector<Light*> lights;
 
-		/*! vector of all our program(group)s, and the SBT built around
-			them */
-		std::vector<OptixProgramGroup> raygenPGs;
-		CUDABuffer raygenRecordsBuffer;
-		std::vector<OptixProgramGroup> missPGs;
-		CUDABuffer missRecordsBuffer;
-		std::vector<OptixProgramGroup> hitgroupPGs;
-		CUDABuffer hitgroupRecordsBuffer;
-		OptixShaderBindingTable sbt = {};
+        /*! the model we are going to trace rays against */
+        const Model* model;
 
-		/*! @{ our launch parameters, on the host, and the buffer to store
-			them on the device */
-		LaunchParams launchParams;
-		CUDABuffer   launchParamsBuffer;
-		/*! @} */
-
-		CUDABuffer colorBuffer;
-
-		/*! the camera we are to render with. */
-		Camera lastSetCamera;
-
-		/*! the model we are going to trace rays against */
-		std::vector<TriangleMesh> meshes;
-		/*! one buffer per input mesh */
-		std::vector<CUDABuffer> vertexBuffer;
-		/*! one buffer per input mesh */
-		std::vector<CUDABuffer> indexBuffer;
-		//! buffer that keeps the (final, compacted) accel structure
-		CUDABuffer asBuffer;
-	};
+        /*! one buffer per input mesh */
+        std::vector<CUDABuffer> vertexBuffer;
+        /*! one buffer per input mesh */
+        std::vector<CUDABuffer> indexBuffer;
+        //! buffer that keeps the (final, compacted) accel structure
+        CUDABuffer asBuffer;
+    };
 
 } // ::osc

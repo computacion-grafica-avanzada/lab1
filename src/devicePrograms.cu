@@ -77,8 +77,8 @@ namespace osc {
 		const vec3f& C = sbtData.vertex[index.z];
 		const vec3f Ng = normalize(cross(B - A, C - A));
 
-		const vec3f rayDir = optixLaunchParams.light.direction;
-		const float cosDN = .2f + .8f * clamp(dot(rayDir, Ng), 0.0f, 1.0f);
+		const vec3f rayDir = optixGetWorldRayDirection();
+		const float cosDN = 0.2f + .8f * fabsf(dot(rayDir, Ng));
 		vec3f& prd = *(vec3f*)getPRD<vec3f>();
 		prd = cosDN * sbtData.color;
 	}
@@ -114,6 +114,7 @@ namespace osc {
 		const int iy = optixGetLaunchIndex().y;
 
 		const auto& camera = optixLaunchParams.camera;
+		const auto& light = optixLaunchParams.lights[0];
 
 		// our per-ray data for this example. what we initialize it to
 		// won't matter, since this value will be overwritten by either
@@ -134,7 +135,7 @@ namespace osc {
 			+ (screen.y - 0.5f) * camera.vertical);
 
 		optixTrace(optixLaunchParams.traversable,
-			camera.position,
+			light.position,
 			rayDir,
 			0.f,    // tmin
 			1e20f,  // tmax
@@ -169,7 +170,7 @@ namespace osc {
 		const int ix = optixGetLaunchIndex().x;
 		const int iy = optixGetLaunchIndex().y;
 
-		const auto& light = optixLaunchParams.light;
+		const auto& light = optixLaunchParams.lights[0];
 
 		// our per-ray data for this example. what we initialize it to
 		// won't matter, since this value will be overwritten by either
@@ -186,10 +187,10 @@ namespace osc {
 
 		// TODO: Generar direccion quasi random.
 		// generate ray direction
-		vec3f rayDir = light.direction;
+		vec3f rayDir = light.position;
 
 		optixTrace(optixLaunchParams.traversable,
-			light.direction,
+			light.position,
 			rayDir,
 			0.f,    // tmin
 			1e20f,  // tmax

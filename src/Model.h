@@ -16,43 +16,38 @@
 
 #pragma once
 
-#include "gdt/math/vec.h"
-#include "optix7.h"
+#include "gdt/math/AffineSpace.h"
+#include <vector>
 
+/*! \namespace osc - Optix Siggraph Course */
 namespace osc {
-	using namespace gdt;
+  using namespace gdt;
+  
+  /*! a simple indexed triangle mesh that our sample renderer will
+      render */
+  struct TriangleMesh {
+    std::vector<vec3f> vertex;
+    std::vector<vec3f> normal;
+    std::vector<vec2f> texcoord;
+    std::vector<vec3i> index;
 
-	struct TriangleMeshSBTData {
-		vec3f  color;
-		vec3f* vertex;
-		vec3i* index;
-	};
+    // material data:
+    vec3f              ambient;
+    vec3f              diffuse;
+    vec3f              specular;
+    vec3f              dissolve;
+    float              ior;
+    float              exponent;
+  };
+  
+  struct Model {
+    ~Model()
+    { for (auto mesh : meshes) delete mesh; }
+    
+    std::vector<TriangleMesh*> meshes;
+    //! bounding box of all vertices in the model
+    box3f bounds;
+  };
 
-	struct Light2 {
-		vec3f position;
-		vec3f power;
-		int numberPhotons;
-	};
-
-	struct LaunchParams
-	{
-		struct {
-			uint32_t* colorBuffer;
-			vec2i     size;
-		} frame;
-
-		struct {
-			vec3f position;
-			vec3f direction;
-			vec3f horizontal;
-			vec3f vertical;
-		} camera;
-
-		struct {
-			Light2* lights;
-		};
-
-		OptixTraversableHandle traversable;
-	};
-
-} // ::osc
+  Model *loadOBJ(const std::string &objFile);
+}
