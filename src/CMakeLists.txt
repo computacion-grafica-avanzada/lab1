@@ -20,28 +20,19 @@ include_directories(${OptiX_INCLUDE})
 
 cuda_compile_and_embed(embedded_ptx_code devicePrograms.cu)
 
-add_executable(src
+add_executable(ex10_softShadows
   ${embedded_ptx_code}
   optix7.h
   CUDABuffer.h
-  Light.h
-  Light.cpp
   SampleRenderer.h
   SampleRenderer.cpp
-  photonMap/Photon.h
-  photonMap/Photon.cpp
-  photonMap/PhotonMap.h
-  photonMap/PhotonMap.cpp
-  photonMap/PhotonsIterator.h
-  photonMap/Vector3D.h
-  photonMap/Vector3D.cpp
-  photonMap/RGBA.cpp
-  photonMap/RGBA.h
   Model.cpp
+  halton.h
+  halton.cpp
   main.cpp
   )
 
-target_link_libraries(src
+target_link_libraries(ex10_softShadows
   gdt
   # optix dependencies, for rendering
   ${optix_LIBRARY}

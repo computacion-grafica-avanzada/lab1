@@ -32,19 +32,31 @@ namespace osc {
     std::vector<vec3i> index;
 
     // material data:
-    vec3f              ambient;
     vec3f              diffuse;
-    vec3f              specular;
-    vec3f              dissolve;
-    float              ior;
-    float              exponent;
+    int                diffuseTextureID { -1 };
+  };
+
+  struct QuadLight {
+    vec3f origin, du, dv, power;
+  };
+  
+  struct Texture {
+    ~Texture()
+    { if (pixel) delete[] pixel; }
+    
+    uint32_t *pixel      { nullptr };
+    vec2i     resolution { -1 };
   };
   
   struct Model {
     ~Model()
-    { for (auto mesh : meshes) delete mesh; }
+    {
+      for (auto mesh : meshes) delete mesh;
+      for (auto texture : textures) delete texture;
+    }
     
-    std::vector<TriangleMesh*> meshes;
+    std::vector<TriangleMesh *> meshes;
+    std::vector<Texture *>      textures;
     //! bounding box of all vertices in the model
     box3f bounds;
   };
