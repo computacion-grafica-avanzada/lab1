@@ -58,6 +58,9 @@ namespace osc {
 
     /*! set camera to render with */
     void setCamera(const Camera &camera);
+
+    /*! perform the first pass of photon mapping */
+    void photonPass();
   protected:
     // ------------------------------------------------------------------
     // internal helper functions
@@ -89,6 +92,9 @@ namespace osc {
 
     /*! constructs the shader binding table */
     void buildSBT();
+
+    /* adds a raygen program to the shader binding table */
+    void addRaygenSBT(int index);
 
     /*! build an acceleration structure for the given triangle mesh */
     OptixTraversableHandle buildAccel();
@@ -157,6 +163,8 @@ namespace osc {
     std::vector<cudaArray_t>         textureArrays;
     std::vector<cudaTextureObject_t> textureObjects;
     /*! @} */
+
+    bool photonMapDone = false;
   };
 
 } // ::osc
