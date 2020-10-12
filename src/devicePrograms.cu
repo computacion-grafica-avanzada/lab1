@@ -91,6 +91,11 @@ namespace osc {
   {
     /* not going to be used ... */
   }
+
+  extern "C" __global__ void __closesthit__photon()
+  {
+      /* not going to be used ... */
+  }
   
   extern "C" __global__ void __closesthit__radiance()
   {
@@ -209,6 +214,10 @@ namespace osc {
 
   extern "C" __global__ void __anyhit__shadow()
   { /*! not going to be used */ }
+
+  extern "C" __global__ void __anyhit__photon()
+  { /*! not going to be used */
+  }
   
   //------------------------------------------------------------------------------
   // miss program that gets called for any ray that did not have a
@@ -232,6 +241,18 @@ namespace osc {
     prd = vec3f(1.f);
   }
 
+  extern "C" __global__ void __miss__photon()
+  {
+      // we didn't hit anything, so the light is visible
+      vec3f& prd = *(vec3f*)getPRD<vec3f>();
+      prd = vec3f(1.f);
+  }
+
+  extern "C" __global__ void __raygen__renderPhoton()
+  {
+      const int ix = optixGetLaunchIndex().x;
+      optixLaunchParams.frame.colorBuffer[ix] = 1;
+  }
   //------------------------------------------------------------------------------
   // ray gen program - the actual rendering happens in here
   //------------------------------------------------------------------------------

@@ -98,6 +98,12 @@ namespace osc {
     
     std::cout << "#osc: building SBT ..." << std::endl;
     buildSBT();
+    addRaygenSBT(PHOTON_RAY_TYPE);
+
+
+    // change raygen to render
+    //photonPass();
+    //addRaygenSBT(RADIANCE_RAY_TYPE);
 
     launchParamsBuffer.alloc(sizeof(launchParams));
     std::cout << "#osc: context, module, pipeline, etc, all set up ..." << std::endl;
@@ -395,13 +401,13 @@ namespace osc {
   void SampleRenderer::createRaygenPrograms()
   {
     // we do a single ray gen program in this example:
-    raygenPGs.resize(1);
+    raygenPGs.resize(2);
       
     OptixProgramGroupOptions pgOptions = {};
     OptixProgramGroupDesc pgDesc    = {};
     pgDesc.kind                     = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
     pgDesc.raygen.module            = module;           
-    pgDesc.raygen.entryFunctionName = "__raygen__renderFrame";
+    pgDesc.raygen.entryFunctionName = "__raygen__renderPhoton";
 
     // OptixProgramGroup raypg;
     char log[2048];
@@ -411,8 +417,19 @@ namespace osc {
                                         1,
                                         &pgOptions,
                                         log,&sizeof_log,
-                                        &raygenPGs[0]
+                                        &raygenPGs[PHOTON_RAY_TYPE]
                                         ));
+
+    pgDesc.raygen.entryFunctionName = "__raygen__renderFrame";
+
+    OPTIX_CHECK(optixProgramGroupCreate(optixContext,
+        &pgDesc,
+        1,
+        &pgOptions,
+        log, &sizeof_log,
+        &raygenPGs[RADIANCE_RAY_TYPE]
+    ));
+
     if (sizeof_log > 1) PRINT(log);
   }
     
@@ -429,6 +446,20 @@ namespace osc {
     OptixProgramGroupDesc pgDesc    = {};
     pgDesc.kind                     = OPTIX_PROGRAM_GROUP_KIND_MISS;
     pgDesc.miss.module              = module ;           
+
+    // ------------------------------------------------------------------
+    // radiance rays
+    // ------------------------------------------------------------------
+    pgDesc.miss.entryFunctionName = "__miss__photon";
+
+    OPTIX_CHECK(optixProgramGroupCreate(optixContext,
+        &pgDesc,
+        1,
+        &pgOptions,
+        log, &sizeof_log,
+        &missPGs[PHOTON_RAY_TYPE]
+    ));
+    if (sizeof_log > 1) PRINT(log);
 
     // ------------------------------------------------------------------
     // radiance rays
@@ -473,6 +504,21 @@ namespace osc {
     pgDesc.kind                         = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
     pgDesc.hitgroup.moduleCH            = module;           
     pgDesc.hitgroup.moduleAH            = module;           
+
+    // -------------------------------------------------------
+    // photon rays
+    // -------------------------------------------------------
+    pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__photon";
+    pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__photon";
+
+    OPTIX_CHECK(optixProgramGroupCreate(optixContext,
+        &pgDesc,
+        1,
+        &pgOptions,
+        log, &sizeof_log,
+        &hitgroupPGs[PHOTON_RAY_TYPE]
+    ));
+    if (sizeof_log > 1) PRINT(log);
 
     // -------------------------------------------------------
     // radiance rays
@@ -550,22 +596,23 @@ namespace osc {
     if (sizeof_log > 1) PRINT(log);
   }
 
-
-  /*! constructs the shader binding table */
-  void SampleRenderer::buildSBT()
-  {
+  void SampleRenderer::addRaygenSBT(int index) {
     // ------------------------------------------------------------------
     // build raygen records
     // ------------------------------------------------------------------
     std::vector<RaygenRecord> raygenRecords;
-    for (int i=0;i<raygenPGs.size();i++) {
-      RaygenRecord rec;
-      OPTIX_CHECK(optixSbtRecordPackHeader(raygenPGs[i],&rec));
-      rec.data = nullptr; /* for now ... */
-      raygenRecords.push_back(rec);
-    }
+    RaygenRecord rec;
+    OPTIX_CHECK(optixSbtRecordPackHeader(raygenPGs[index],&rec));
+    rec.data = nullptr; /* for now ... */
+    raygenRecords.push_back(rec);
+    raygenRecordsBuffer.free();
     raygenRecordsBuffer.alloc_and_upload(raygenRecords);
     sbt.raygenRecord = raygenRecordsBuffer.d_pointer();
+  }
+
+  /*! constructs the shader binding table */
+  void SampleRenderer::buildSBT()
+  {
 
     // ------------------------------------------------------------------
     // build miss records
@@ -618,6 +665,12 @@ namespace osc {
   /*! render one frame */
   void SampleRenderer::render()
   {
+      if (!photonMapDone) {
+          photonPass();
+          addRaygenSBT(RADIANCE_RAY_TYPE);
+          photonMapDone = true;
+          std::cout << "entro una vez";
+      }
     // sanity check: make sure we launch only after first resize is
     // already done:
     if (launchParams.frame.size.x == 0) return;
@@ -684,4 +737,24 @@ namespace osc {
                          launchParams.frame.size.x*launchParams.frame.size.y);
   }
   
+  void SampleRenderer::photonPass() {
+      // sanity check: make sure we launch only after first resize is
+      // already done:
+      if (launchParams.frame.size.x == 0) return;
+
+      launchParamsBuffer.upload(&launchParams, 1);
+      launchParams.frame.accumID++;
+
+      OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
+          pipeline, stream,
+          /*! parameters and SBT */
+          launchParamsBuffer.d_pointer(),
+          launchParamsBuffer.sizeInBytes,
+          &sbt,
+          /*! dimensions of the launch: */
+          10000, // number of photons
+          1,
+          1
+      ));
+  }
 } // ::osc
