@@ -126,6 +126,8 @@ namespace osc {
 	extern "C" __global__ void __closesthit__photon()
 	{
 		/* not going to be used ... */
+		PRD& prd = *getPRD<PRD>();
+		prd.pixelColor = vec3f(0, 1.f, 1.f);
 	}
 
 	extern "C" __global__ void __closesthit__radiance()
@@ -277,57 +279,96 @@ namespace osc {
 	extern "C" __global__ void __miss__photon()
 	{
 		// we didn't hit anything, so the light is visible
-		vec3f& prd = *(vec3f*)getPRD<vec3f>();
-		prd = vec3f(1.f);
+		PRD& prd = *getPRD<PRD>();
+		prd.pixelColor = vec3f(0,0,1.f);
 	}
 
 	extern "C" __global__ void __raygen__renderPhoton()
 	{
-		// ray id
+		//// ray id
+		//const int ix = optixGetLaunchIndex().x;
+
+		//vec2f random((float)optixLaunchParams.halton[ix][0], (float)optixLaunchParams.halton[ix][1]);
+		//vec3f U, V, W, direction;
+		//create_onb(optixLaunchParams.light.normal, U, V, W);
+		//sampleUnitHemisphere(random, U, V, W, direction);
+
+		//unsigned int depth = 0;
+
+		//optixTrace(optixLaunchParams.traversable,
+		//	optixLaunchParams.light.origin,
+		//	direction,
+		//	0.f,    // tmin
+		//	1e20f,  // tmax
+		//	0.0f,   // rayTime
+		//	OptixVisibilityMask(255),
+		//	OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+		//	PHOTON_RAY_TYPE,            // SBT offset
+		//	RAY_TYPE_COUNT,             // SBT stride
+		//	PHOTON_RAY_TYPE,            // missSBTIndex 
+		//	depth);
+
+		// compute a test pattern based on pixel ID
 		const int ix = optixGetLaunchIndex().x;
+		const int iy = optixGetLaunchIndex().y;
+		const int accumID = optixLaunchParams.frame.accumID;
+		const auto& camera = optixLaunchParams.camera;
 
-		vec2f random((float)optixLaunchParams.halton[ix][0], (float)optixLaunchParams.halton[ix][1]);
-		vec3f U, V, W, direction;
-		create_onb(optixLaunchParams.light.normal, U, V, W);
-		sampleUnitHemisphere(random, U, V, W, direction);
+		PRD prd;
+		prd.random.init(ix + accumID * optixLaunchParams.frame.size.x,
+			iy + accumID * optixLaunchParams.frame.size.y);
+		prd.pixelColor = vec3f(0.f);
 
-		unsigned int depth = 0;
+		// the values we store the PRD pointer in:
+		uint32_t u0, u1;
+		packPointer(&prd, u0, u1);
 
-		optixTrace(optixLaunchParams.traversable,
-			optixLaunchParams.light.origin,
-			direction,
-			0.f,    // tmin
-			1e20f,  // tmax
-			0.0f,   // rayTime
-			OptixVisibilityMask(255),
-			OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
-			PHOTON_RAY_TYPE,            // SBT offset
-			RAY_TYPE_COUNT,             // SBT stride
-			PHOTON_RAY_TYPE,            // missSBTIndex 
-			depth);
+		int numPixelSamples = NUM_PIXEL_SAMPLES;
+
+		vec3f pixelColor = 0.f;
+		for (int sampleID = 0; sampleID < numPixelSamples; sampleID++) {
+			// normalized screen plane position, in [0,1]^2
+			const vec2f screen(vec2f(ix + prd.random(), iy + prd.random())
+				/ vec2f(optixLaunchParams.frame.size));
+
+			// generate ray direction
+			vec3f rayDir = normalize(camera.direction
+				+ (screen.x - 0.5f) * camera.horizontal
+				+ (screen.y - 0.5f) * camera.vertical);
+
+			optixTrace(optixLaunchParams.traversable,
+				camera.position,
+				rayDir,
+				0.f,    // tmin
+				1e20f,  // tmax
+				0.0f,   // rayTime
+				OptixVisibilityMask(255),
+				OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+				PHOTON_RAY_TYPE,            // SBT offset
+				RAY_TYPE_COUNT,               // SBT stride
+				PHOTON_RAY_TYPE,            // missSBTIndex 
+				u0, u1);
+			pixelColor += prd.pixelColor;
+		}
+
+		const int r = int(255.99f * min(pixelColor.x / numPixelSamples, 1.f));
+		const int g = int(255.99f * min(pixelColor.y / numPixelSamples, 1.f));
+		const int b = int(255.99f * min(pixelColor.z / numPixelSamples, 1.f));
+
+		// convert to 32-bit rgba value (we explicitly set alpha to 0xff
+		// to make stb_image_write happy ...
+		const uint32_t rgba = 0xff000000
+			| (r << 0) | (g << 8) | (b << 16);
+
+		// and write to frame buffer ...
+		const uint32_t fbIndex = ix + iy * optixLaunchParams.frame.size.x;
+		optixLaunchParams.frame.colorBuffer[fbIndex] = rgba;
 	}
 	//------------------------------------------------------------------------------
 	// ray gen program - the actual rendering happens in here
 	//------------------------------------------------------------------------------
 	extern "C" __global__ void __raygen__renderFrame()
 	{
-		for (int i = 0; i < NUM_PHOTON_SAMPLES; i++) {
-			// produce random light sample
-			//const vec3f lightPos
-			//    = optixLaunchParams.light.origin
-			//    + prd.random() * optixLaunchParams.light.du
-			//    + prd.random() * optixLaunchParams.light.dv;
-			//
-			//// computar direccion random con coseno
-			//
-			//rho = sqrt(rhotheta(1:n, 1));
-			//theta = rhotheta(1:n, 2) * 2 * pi; 
-			//[x, y] = pol2cart(theta, rho);
-			//z = sqrt(1 - x. ^ 2 - y. ^ 2);
-
-			// lanzar rayo
-		}
-
 		// compute a test pattern based on pixel ID
 		const int ix = optixGetLaunchIndex().x;
 		const int iy = optixGetLaunchIndex().y;

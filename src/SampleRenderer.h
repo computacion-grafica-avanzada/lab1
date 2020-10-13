@@ -92,6 +92,7 @@ namespace osc {
 
 		/*! constructs the shader binding table */
 		void buildSBT();
+		void buildSBT2();
 
 		/* adds a raygen program to the shader binding table */
 		void addRaygenSBT(int index);
@@ -127,19 +128,22 @@ namespace osc {
 			them */
 		std::vector<OptixProgramGroup> raygenPGs;
 		CUDABuffer raygenRecordsBuffer;
+		CUDABuffer raygenRecordsBuffer2;
 		std::vector<OptixProgramGroup> missPGs;
 		CUDABuffer missRecordsBuffer;
+		CUDABuffer missRecordsBuffer2;
 		std::vector<OptixProgramGroup> hitgroupPGs;
 		CUDABuffer hitgroupRecordsBuffer;
+		CUDABuffer hitgroupRecordsBuffer2;
+
 		OptixShaderBindingTable sbt = {};
+		OptixShaderBindingTable sbt2 = {};
 
 		/*! @{ our launch parameters, on the host, and the buffer to store
 			them on the device */
 		LaunchParams launchParams;
 		CUDABuffer   launchParamsBuffer;
-
-		LaunchParams launchParamsPhoton;
-		CUDABuffer   launchParamsBufferPhoton;
+		CUDABuffer   launchParamsBuffer2;
 		/*! @} */
 
 		CUDABuffer colorBuffer;
