@@ -76,6 +76,37 @@ namespace osc {
     const uint32_t u1 = optixGetPayload_1();
     return reinterpret_cast<T*>( unpackPointer( u0, u1 ) );
   }
+
+  // sample hemisphere with cosine density
+  static __device__ __inline__ void sampleUnitHemisphere(
+      const vec2f& sample,
+      const vec3f& U,
+      const vec3f& V,
+      const vec3f& W,
+      vec3f& point)
+  {
+      float phi = 2.0f * M_PI * sample.x;
+      float r = sqrt(sample.y);
+      float x = r * cos(phi);
+      float y = r * sin(phi);
+      float z = 1.0f - x * x - y * y;
+      z = z > 0.0f ? sqrt(z) : 0.0f;
+
+      point = x * U + y * V + z * W;
+  }
+
+  // Create ONB from normal.  Resulting W is parallel to normal
+  static __device__ __inline__ void create_onb(const vec3f& n, vec3f& U, vec3f& V, vec3f& W)
+  {
+      W = normalize(n);
+      U = cross(W, vec3f(0.0f, 1.0f, 0.0f));
+
+      if (fabs(U.x) < 0.001f && fabs(U.y) < 0.001f && fabs(U.z) < 0.001f)
+          U = cross(W, vec3f(1.0f, 0.0f, 0.0f));
+
+      U = normalize(U);
+      V = cross(W, U);
+  }
   
   //------------------------------------------------------------------------------
   // closest hit and anyhit programs for radiance-type rays.
@@ -166,10 +197,10 @@ namespace osc {
     const int numLightSamples = NUM_LIGHT_SAMPLES;
     for (int lightSampleID=0;lightSampleID<numLightSamples;lightSampleID++) {
       // produce random light sample
-      const vec3f lightPos
-        = optixLaunchParams.light.origin
-        + prd.random() * optixLaunchParams.light.du
-        + prd.random() * optixLaunchParams.light.dv;
+        const vec3f lightPos
+            = optixLaunchParams.light.origin;
+        //+ prd.random() * optixLaunchParams.light.du
+        //+ prd.random() * optixLaunchParams.light.dv;
       vec3f lightDir = lightPos - surfPos;
       float lightDist = gdt::length(lightDir);
       lightDir = normalize(lightDir);
@@ -231,7 +262,7 @@ namespace osc {
   {
     PRD &prd = *getPRD<PRD>();
     // set to constant white as background color
-    prd.pixelColor = vec3f(optixLaunchParams.halton[9000]);
+    //prd.pixelColor = vec3f(optixLaunchParams.halton[9000]);
   }
 
   extern "C" __global__ void __miss__shadow()
@@ -250,8 +281,28 @@ namespace osc {
 
   extern "C" __global__ void __raygen__renderPhoton()
   {
+      // ray id
       const int ix = optixGetLaunchIndex().x;
-      optixLaunchParams.frame.colorBuffer[ix] = 1;
+
+      vec2f random((float)optixLaunchParams.halton[ix][0], (float)optixLaunchParams.halton[ix][1]);
+      vec3f U, V, W, direction;
+      create_onb(optixLaunchParams.light.normal, U, V, W);
+      sampleUnitHemisphere(random, U, V, W, direction);
+
+      unsigned int depth = 0;
+
+      optixTrace(optixLaunchParams.traversable,
+          optixLaunchParams.light.origin,
+          direction,
+          0.f,    // tmin
+          1e20f,  // tmax
+          0.0f,   // rayTime
+          OptixVisibilityMask(255),
+          OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+          PHOTON_RAY_TYPE,            // SBT offset
+          RAY_TYPE_COUNT,             // SBT stride
+          PHOTON_RAY_TYPE,            // missSBTIndex 
+          depth);
   }
   //------------------------------------------------------------------------------
   // ray gen program - the actual rendering happens in here

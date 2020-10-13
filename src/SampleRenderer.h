@@ -45,7 +45,7 @@ namespace osc {
   public:
     /*! constructor - performs all setup, including initializing
       optix, creates module, pipeline, programs, SBT, etc. */
-    SampleRenderer(const Model *model, const QuadLight &light);
+    SampleRenderer(const Model *model, const PointLight &light);
 
     /*! render one frame */
     void render();
@@ -137,6 +137,9 @@ namespace osc {
         them on the device */
     LaunchParams launchParams;
     CUDABuffer   launchParamsBuffer;
+
+    //LaunchParams launchParamsPhoton;
+    //CUDABuffer   launchParamsBufferPhoton;
     /*! @} */
 
     CUDABuffer colorBuffer;

@@ -29,7 +29,7 @@ namespace osc {
     SampleWindow(const std::string &title,
                  const Model *model,
                  const Camera &camera,
-                 const QuadLight &light,
+                 const PointLight &light,
                  const float worldScale)
       : GLFCameraWindow(title,camera.from,camera.at,camera.up,worldScale), sample(model,light)
     {
@@ -129,10 +129,12 @@ namespace osc {
       };
 
       // some simple, hard-coded light ... obviously, only works for sponza
-      QuadLight light = { /* origin */ vec3f(0,1.97f,0),
-                          /* edge 1 */ vec3f(-.24f,0,-.22f),
-                          /* edge 2 */ vec3f(.23f,0,.16f),
-                          /* power */  vec3f(3.f) };
+      //QuadLight light = { /* origin */ vec3f(0,1.97f,0),
+      //                    /* edge 1 */ vec3f(-.24f,0,-.22f),
+      //                    /* edge 2 */ vec3f(.23f,0,.16f),
+      //                    /* power */  vec3f(3.f) };
+
+      PointLight light = { vec3f(0,1.97,0), vec3f(0,-1,0), vec3f(3.f) };
                       
       // something approximating the scale of the world, so the
       // camera knows how much to move for any given user interaction:
