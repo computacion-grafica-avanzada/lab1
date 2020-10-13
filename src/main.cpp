@@ -114,7 +114,7 @@ namespace osc {
 	extern "C" int main(int ac, char** av)
 	{
 		try {
-			Model* model = loadOBJ("../models/CornellBox-Empty-RG.obj");
+			Model* model = loadOBJ("../../models/CornellBox-Empty-RG.obj");
 
 			//for (int i = 0; i < 10000; i++) {
 			//    double* rand = halton(i, 2);
