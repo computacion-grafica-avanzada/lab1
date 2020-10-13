@@ -53,26 +53,26 @@ namespace osc {
 
   /*! constructor - performs all setup, including initializing
     optix, creates module, pipeline, programs, SBT, etc. */
-  SampleRenderer::SampleRenderer(const Model *model, const QuadLight &light)
+  SampleRenderer::SampleRenderer(const Model *model, const PointLight &light)
     : model(model)
   {
     initOptix();
 
-    std::vector<double> haltons;
+    std::vector<double*> haltons;
     for (int i = 0; i < 10000; i++) {
-        haltons.push_back(*halton(i, 2));
+        haltons.push_back(halton(i, 2));
+        //std::cout << haltons[i][0] << " " << haltons[i][1] << std::endl;
     }
     haltonNumbers.alloc_and_upload(haltons);
     // update the launch parameters that we'll pass to the optix
     // launch:
-    launchParams.halton = (double*)haltonNumbers.d_pointer();
+    launchParams.halton = (double**)haltonNumbers.d_pointer();
 
     //launchParams.halton = new double*[10000];
     //PRINT(*launchParams.halton[10])
 
     launchParams.light.origin = light.origin;
-    launchParams.light.du     = light.du;
-    launchParams.light.dv     = light.dv;
+    launchParams.light.normal = light.normal;
     launchParams.light.power  = light.power;
 
     std::cout << "#osc: creating optix context ..." << std::endl;
@@ -102,15 +102,17 @@ namespace osc {
 
 
     // change raygen to render
-    //photonPass();
-    //addRaygenSBT(RADIANCE_RAY_TYPE);
 
     launchParamsBuffer.alloc(sizeof(launchParams));
+    //launchParamsBufferPhoton.alloc(sizeof(launchParamsPhoton));
     std::cout << "#osc: context, module, pipeline, etc, all set up ..." << std::endl;
 
     std::cout << GDT_TERMINAL_GREEN;
     std::cout << "#osc: Optix 7 Sample fully set up" << std::endl;
     std::cout << GDT_TERMINAL_DEFAULT;
+
+    //photonPass();
+    //addRaygenSBT(RADIANCE_RAY_TYPE);
   }
 
   void SampleRenderer::createTextures()
@@ -603,6 +605,20 @@ namespace osc {
     std::vector<RaygenRecord> raygenRecords;
     RaygenRecord rec;
     OPTIX_CHECK(optixSbtRecordPackHeader(raygenPGs[index],&rec));
+
+    RaygenRecord rec2;
+    OPTIX_CHECK(optixSbtRecordPackHeader(raygenPGs[0], &rec2));
+
+    RaygenRecord rec3;
+    OPTIX_CHECK(optixSbtRecordPackHeader(raygenPGs[1], &rec3));
+
+    RaygenRecord rec4;
+    OPTIX_CHECK(optixSbtRecordPackHeader(raygenPGs[0], &rec4));
+
+    RaygenRecord rec5;
+    OPTIX_CHECK(optixSbtRecordPackHeader(raygenPGs[1], &rec5));
+
+
     rec.data = nullptr; /* for now ... */
     raygenRecords.push_back(rec);
     raygenRecordsBuffer.free();
@@ -665,12 +681,12 @@ namespace osc {
   /*! render one frame */
   void SampleRenderer::render()
   {
-      if (!photonMapDone) {
-          photonPass();
+      //if (!photonMapDone) {
+      //    photonPass();
           addRaygenSBT(RADIANCE_RAY_TYPE);
-          photonMapDone = true;
-          std::cout << "entro una vez";
-      }
+      //    photonMapDone = true;
+      //    std::cout << "entro una vez";
+      //}
     // sanity check: make sure we launch only after first resize is
     // already done:
     if (launchParams.frame.size.x == 0) return;
@@ -737,24 +753,24 @@ namespace osc {
                          launchParams.frame.size.x*launchParams.frame.size.y);
   }
   
-  void SampleRenderer::photonPass() {
-      // sanity check: make sure we launch only after first resize is
-      // already done:
-      if (launchParams.frame.size.x == 0) return;
+  //void SampleRenderer::photonPass() {
+  //    // sanity check: make sure we launch only after first resize is
+  //    // already done:
+  //    if (launchParamsPhoton.frame.size.x == 0) return;
 
-      launchParamsBuffer.upload(&launchParams, 1);
-      launchParams.frame.accumID++;
+  //    launchParamsBufferPhoton.upload(&launchParamsPhoton, 1);
+  //    launchParamsPhoton.frame.accumID++;
 
-      OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
-          pipeline, stream,
-          /*! parameters and SBT */
-          launchParamsBuffer.d_pointer(),
-          launchParamsBuffer.sizeInBytes,
-          &sbt,
-          /*! dimensions of the launch: */
-          10000, // number of photons
-          1,
-          1
-      ));
-  }
+  //    OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
+  //        pipeline, stream,
+  //        /*! parameters and SBT */
+  //        launchParamsBufferPhoton.d_pointer(),
+  //        launchParamsBufferPhoton.sizeInBytes,
+  //        &sbt,
+  //        /*! dimensions of the launch: */
+  //        10000, // number of photons
+  //        1,
+  //        1
+  //    ));
+  //}
 } // ::osc

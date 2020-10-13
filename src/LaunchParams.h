@@ -51,10 +51,10 @@ namespace osc {
     } camera;
 
     struct {
-      vec3f origin, du, dv, power;
+      vec3f origin, normal, power;
     } light;
 
-    double* halton;
+    double** halton;
     
     OptixTraversableHandle traversable;
   };

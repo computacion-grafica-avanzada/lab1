@@ -36,8 +36,8 @@ namespace osc {
     int                diffuseTextureID { -1 };
   };
 
-  struct QuadLight {
-    vec3f origin, du, dv, power;
+  struct PointLight {
+    vec3f origin, normal, power;
   };
   
   struct Texture {
