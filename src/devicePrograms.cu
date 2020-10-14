@@ -21,7 +21,6 @@
 #include "gdt/random/random.h"
 
 #include <cuda.h>
-#include <curand.h>
 
 #define CUDA_CALL(x) do { if((x)!=cudaSuccess) { \
     printf("Error at %s:%d\n",__FILE__,__LINE__);\
@@ -53,8 +52,9 @@ namespace osc {
 		vec3f  pixelColor;
 	};
 
-	struct PhotonPayload {
-		int depth;
+	struct PhotonPRD {
+		Random random;
+		unsigned int depth;
 	};
 
 	static __forceinline__ __device__
@@ -63,6 +63,18 @@ namespace osc {
 		const uint64_t uptr = static_cast<uint64_t>(i0) << 32 | i1;
 		void* ptr = reinterpret_cast<void*>(uptr);
 		return ptr;
+	}
+
+	static __device__ __inline__ PhotonPRD getPhotonPRD()
+	{
+		PhotonPRD prd;
+		prd.depth = optixGetPayload_0();
+		return prd;
+	}
+
+	static __device__ __inline__ void setPhotonPRD(const PhotonPRD& prd)
+	{
+		optixSetPayload_0(prd.depth);
 	}
 
 	static __forceinline__ __device__
@@ -89,6 +101,7 @@ namespace osc {
 		const vec3f& W,
 		vec3f& point)
 	{
+		// https://github.com/nvpro-samples/optix_advanced_samples/blob/21465ae85c47f3c57371c77fd2aa3bac4adabcd4/src/optixProgressivePhotonMap/ppm_ppass.cu
 		float phi = 2.0f * M_PI * sample.x;
 		float r = sqrt(sample.y);
 		float x = r * cos(phi);
@@ -102,6 +115,7 @@ namespace osc {
 	// Create ONB from normal.  Resulting W is parallel to normal
 	static __device__ __inline__ void create_onb(const vec3f& n, vec3f& U, vec3f& V, vec3f& W)
 	{
+		// https://github.com/nvpro-samples/optix_advanced_samples/blob/e4b6e03f5ad1239403d7990291604cd3eb12d814/src/device_include/helpers.h
 		W = normalize(n);
 		U = cross(W, vec3f(0.0f, 1.0f, 0.0f));
 
@@ -130,9 +144,20 @@ namespace osc {
 	extern "C" __global__ void __closesthit__photon()
 	{
 		/* not going to be used ... */
-		PhotonPayload& prd = *getPRD<PhotonPayload>();
-		//prd.pixelColor = vec3f(0, 1.f, 1.f);*/
-		prd.depth = 10;
+		PhotonPRD& prd = *(PhotonPRD*)getPRD<PhotonPRD>();
+		prd.depth = prd.random() * 100;
+
+		//without random
+		//PhotonPRD prd = getPhotonPRD();
+		//prd.depth = 10;
+		//setPhotonPRD(prd);
+		printf("hit %i \n", prd.depth);
+
+		// ruleta rusa
+		// en el caso difuso si depth es 0 no se guarda marca
+		// chequear depth+1 menor a MAX
+		// tirar rayos acorde a reflexion difusa, specular, transmision o nada si se absorbe
+
 	}
 
 	extern "C" __global__ void __closesthit__radiance()
@@ -283,104 +308,57 @@ namespace osc {
 
 	extern "C" __global__ void __miss__photon()
 	{
-		// we didn't hit anything, so the light is visible
-		//PRD& prd = *getPRD<PRD>();
-		//prd.pixelColor = vec3f(0,0,1.f);
-		PhotonPayload& prd = *getPRD<PhotonPayload>();
-		//prd.pixelColor = vec3f(0, 1.f, 1.f);*/
-		prd.depth = 100;
+		PhotonPRD& prd = *(PhotonPRD*)getPRD<PhotonPRD>();
+		prd.depth = prd.random() * 10;
+
+		//without random
+		//PhotonPRD prd = getPhotonPRD();
+		//prd.depth = 100;
+		//setPhotonPRD(prd);
+		printf("miss %i \n", prd.depth);
 	}
 
 	extern "C" __global__ void __raygen__renderPhoton()
 	{
 		// compute a test pattern based on pixel ID
 		const int ix = optixGetLaunchIndex().x;
-		const int iy = optixGetLaunchIndex().y;
-		const int accumID = optixLaunchParams.frame.accumID;
-		const auto& camera = optixLaunchParams.camera;
 
-		//PRD prd;
-		//prd.random.init(ix + accumID * optixLaunchParams.frame.size.x,
-		//	iy + accumID * optixLaunchParams.frame.size.y);
-		//prd.pixelColor = vec3f(0.f);
+		//Random ran;
+		//ran.init(ix,ix*optixLaunchParams.frame.size.x);
+
+		//printf("\n random 1: %f 2: %f 3: %f ix: %d hax: %f hay: %f\n", ran(), ran(), ran(), ix, optixLaunchParams.halton[ix].x, optixLaunchParams.halton[ix].y);
 		
-		PhotonPayload prd = { 0 };
-		// the values we store the PRD pointer in:
+		PhotonPRD prd;
+		prd.random.init(ix, ix * optixLaunchParams.frame.size.x);
+		prd.depth = 0;
+
 		uint32_t u0, u1;
 		packPointer(&prd, u0, u1);
 
-		// ray id
-		//const int ix = optixGetLaunchIndex().x;
-
-		//vec2f random((float)optixLaunchParams.halton[ix][0], (float)optixLaunchParams.halton[ix][1]);
-		//printf("%i %i \n", optixLaunchParams.ji[0], optixLaunchParams.ji[1]);
-		//printf("%i %i \n", optixLaunchParams.funca.prueba, optixLaunchParams.solo);
+		// obtain random direction
 		vec3f U, V, W, direction;
 		create_onb(optixLaunchParams.light.normal, U, V, W);
 		sampleUnitHemisphere(optixLaunchParams.halton[ix], U, V, W, direction);
-		//printf("%f %f (%f %f %f)\n", optixLaunchParams.halton[ix].x, optixLaunchParams.halton[ix].y, direction.x, direction.y, direction.z);
-
-		//printf("%f %f %f", PHOTON_RAY_TYPE, optixLaunchParams.light.origin.y, optixLaunchParams.light.origin.z);
-		uint32_t depth = 0;
-
-		optixTrace(optixLaunchParams.traversable,
+				
+		optixTrace(
+			optixLaunchParams.traversable,
 			optixLaunchParams.light.origin,
 			direction,
-			0.f,    // tmin
-			1e20f,  // tmax
-			0.0f,   // rayTime
+			0.f,							// tmin
+			1e20f,							// tmax
+			0.0f,							// rayTime
 			OptixVisibilityMask(255),
-			OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
-			PHOTON_RAY_TYPE,            // SBT offset
-			RAY_TYPE_COUNT,               // SBT stride
-			PHOTON_RAY_TYPE,            // missSBTIndex 
-			u0,u1);
+			OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
+			PHOTON_RAY_TYPE,				// SBT offset
+			RAY_TYPE_COUNT,					// SBT stride
+			PHOTON_RAY_TYPE,				// missSBTIndex 
+			//prd.depth						// reinterpret_cast<unsigned int&>(prd.depth)
+			u0,u1
+		);
 
-		printf("profundidad %f \n", prd.depth);
-		prd.depth = 1000;
-		printf("profundidad %f \n", prd.depth);
-
-		//int numPixelSamples = NUM_PIXEL_SAMPLES;
-
-		//vec3f pixelColor = 0.f;
-		//for (int sampleID = 0; sampleID < numPixelSamples; sampleID++) {
-		//	// normalized screen plane position, in [0,1]^2
-		//	const vec2f screen(vec2f(ix + prd.random(), iy + prd.random())
-		//		/ vec2f(optixLaunchParams.frame.size));
-
-		//	// generate ray direction
-		//	vec3f rayDir = normalize(camera.direction
-		//		+ (screen.x - 0.5f) * camera.horizontal
-		//		+ (screen.y - 0.5f) * camera.vertical);
-
-		//	optixTrace(optixLaunchParams.traversable,
-		//		camera.position,
-		//		rayDir,
-		//		0.f,    // tmin
-		//		1e20f,  // tmax
-		//		0.0f,   // rayTime
-		//		OptixVisibilityMask(255),
-		//		OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
-		//		PHOTON_RAY_TYPE,            // SBT offset
-		//		RAY_TYPE_COUNT,               // SBT stride
-		//		PHOTON_RAY_TYPE,            // missSBTIndex 
-		//		u0, u1);
-		//	pixelColor += prd.pixelColor;
-		//}
-
-		//const int r = int(255.99f * min(pixelColor.x / numPixelSamples, 1.f));
-		//const int g = int(255.99f * min(pixelColor.y / numPixelSamples, 1.f));
-		//const int b = int(255.99f * min(pixelColor.z / numPixelSamples, 1.f));
-
-		//// convert to 32-bit rgba value (we explicitly set alpha to 0xff
-		//// to make stb_image_write happy ...
-		//const uint32_t rgba = 0xff000000
-		//	| (r << 0) | (g << 8) | (b << 16);
-
-		//// and write to frame buffer ...
-		//const uint32_t fbIndex = ix + iy * optixLaunchParams.frame.size.x;
-		//optixLaunchParams.frame.colorBuffer[fbIndex] = rgba;
+		printf("profundidad %i \n", prd.depth);
 	}
+
 	//------------------------------------------------------------------------------
 	// ray gen program - the actual rendering happens in here
 	//------------------------------------------------------------------------------
