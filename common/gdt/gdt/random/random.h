@@ -76,7 +76,7 @@ namespace gdt {
       state = v0;
     }
     
-    // Generate random unsigned int in [0, 2^24)
+    // Generate random float in [0, 1)
     inline __both__ float operator() ()
     {
       const uint32_t LCG_A = 1664525u;
