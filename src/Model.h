@@ -37,6 +37,7 @@ namespace osc {
   };
 
   struct PointLight {
+      int numberPhotons;
     vec3f origin, normal, power;
   };
   
