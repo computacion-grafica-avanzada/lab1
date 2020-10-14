@@ -285,31 +285,35 @@ namespace osc {
 
 	extern "C" __global__ void __raygen__renderPhoton()
 	{
-		//// ray id
-		//const int ix = optixGetLaunchIndex().x;
+		// ray id
+		const int ix = optixGetLaunchIndex().x;
 
 		//vec2f random((float)optixLaunchParams.halton[ix][0], (float)optixLaunchParams.halton[ix][1]);
-		//vec3f U, V, W, direction;
-		//create_onb(optixLaunchParams.light.normal, U, V, W);
-		//sampleUnitHemisphere(random, U, V, W, direction);
+		//printf("%i %i \n", optixLaunchParams.ji[0], optixLaunchParams.ji[1]);
+		//printf("%i %i \n", optixLaunchParams.funca.prueba, optixLaunchParams.solo);
+		vec3f U, V, W, direction;
+		create_onb(optixLaunchParams.light.normal, U, V, W);
+		sampleUnitHemisphere(optixLaunchParams.halton[ix], U, V, W, direction);
+		printf("%f %f (%f %f %f)\n", optixLaunchParams.halton[ix].x, optixLaunchParams.halton[ix].y, direction.x, direction.y, direction.z);
 
-		//unsigned int depth = 0;
+		printf("%f %f %f", PHOTON_RAY_TYPE, optixLaunchParams.light.origin.y, optixLaunchParams.light.origin.z);
+		unsigned int depth = 0;
 
-		//optixTrace(optixLaunchParams.traversable,
-		//	optixLaunchParams.light.origin,
-		//	direction,
-		//	0.f,    // tmin
-		//	1e20f,  // tmax
-		//	0.0f,   // rayTime
-		//	OptixVisibilityMask(255),
-		//	OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
-		//	PHOTON_RAY_TYPE,            // SBT offset
-		//	RAY_TYPE_COUNT,             // SBT stride
-		//	PHOTON_RAY_TYPE,            // missSBTIndex 
-		//	depth);
+		optixTrace(optixLaunchParams.traversable,
+			optixLaunchParams.light.origin,
+			direction,
+			0.f,    // tmin
+			1e20f,  // tmax
+			0.0f,   // rayTime
+			OptixVisibilityMask(255),
+			OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+			PHOTON_RAY_TYPE,            // SBT offset
+			RAY_TYPE_COUNT,             // SBT stride
+			PHOTON_RAY_TYPE,            // missSBTIndex 
+			depth);
 
 		// compute a test pattern based on pixel ID
-		const int ix = optixGetLaunchIndex().x;
+		//const int ix = optixGetLaunchIndex().x;
 		const int iy = optixGetLaunchIndex().y;
 		const int accumID = optixLaunchParams.frame.accumID;
 		const auto& camera = optixLaunchParams.camera;

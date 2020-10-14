@@ -172,6 +172,8 @@ namespace osc {
 		/*! @} */
 
 		bool photonMapDone = false;
+
+		CUDABuffer numeros;
 	};
 
 } // ::osc
