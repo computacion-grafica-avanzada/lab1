@@ -53,6 +53,10 @@ namespace osc {
 		vec3f  pixelColor;
 	};
 
+	struct PhotonPayload {
+		int depth;
+	};
+
 	static __forceinline__ __device__
 		void* unpackPointer(uint32_t i0, uint32_t i1)
 	{
@@ -126,8 +130,9 @@ namespace osc {
 	extern "C" __global__ void __closesthit__photon()
 	{
 		/* not going to be used ... */
-		PRD& prd = *getPRD<PRD>();
-		prd.pixelColor = vec3f(0, 1.f, 1.f);
+		PhotonPayload& prd = *getPRD<PhotonPayload>();
+		//prd.pixelColor = vec3f(0, 1.f, 1.f);*/
+		prd.depth = 10;
 	}
 
 	extern "C" __global__ void __closesthit__radiance()
@@ -279,14 +284,33 @@ namespace osc {
 	extern "C" __global__ void __miss__photon()
 	{
 		// we didn't hit anything, so the light is visible
-		PRD& prd = *getPRD<PRD>();
-		prd.pixelColor = vec3f(0,0,1.f);
+		//PRD& prd = *getPRD<PRD>();
+		//prd.pixelColor = vec3f(0,0,1.f);
+		PhotonPayload& prd = *getPRD<PhotonPayload>();
+		//prd.pixelColor = vec3f(0, 1.f, 1.f);*/
+		prd.depth = 100;
 	}
 
 	extern "C" __global__ void __raygen__renderPhoton()
 	{
-		// ray id
+		// compute a test pattern based on pixel ID
 		const int ix = optixGetLaunchIndex().x;
+		const int iy = optixGetLaunchIndex().y;
+		const int accumID = optixLaunchParams.frame.accumID;
+		const auto& camera = optixLaunchParams.camera;
+
+		//PRD prd;
+		//prd.random.init(ix + accumID * optixLaunchParams.frame.size.x,
+		//	iy + accumID * optixLaunchParams.frame.size.y);
+		//prd.pixelColor = vec3f(0.f);
+		
+		PhotonPayload prd = { 0 };
+		// the values we store the PRD pointer in:
+		uint32_t u0, u1;
+		packPointer(&prd, u0, u1);
+
+		// ray id
+		//const int ix = optixGetLaunchIndex().x;
 
 		//vec2f random((float)optixLaunchParams.halton[ix][0], (float)optixLaunchParams.halton[ix][1]);
 		//printf("%i %i \n", optixLaunchParams.ji[0], optixLaunchParams.ji[1]);
@@ -294,10 +318,10 @@ namespace osc {
 		vec3f U, V, W, direction;
 		create_onb(optixLaunchParams.light.normal, U, V, W);
 		sampleUnitHemisphere(optixLaunchParams.halton[ix], U, V, W, direction);
-		printf("%f %f (%f %f %f)\n", optixLaunchParams.halton[ix].x, optixLaunchParams.halton[ix].y, direction.x, direction.y, direction.z);
+		//printf("%f %f (%f %f %f)\n", optixLaunchParams.halton[ix].x, optixLaunchParams.halton[ix].y, direction.x, direction.y, direction.z);
 
-		printf("%f %f %f", PHOTON_RAY_TYPE, optixLaunchParams.light.origin.y, optixLaunchParams.light.origin.z);
-		unsigned int depth = 0;
+		//printf("%f %f %f", PHOTON_RAY_TYPE, optixLaunchParams.light.origin.y, optixLaunchParams.light.origin.z);
+		uint32_t depth = 0;
 
 		optixTrace(optixLaunchParams.traversable,
 			optixLaunchParams.light.origin,
@@ -308,65 +332,54 @@ namespace osc {
 			OptixVisibilityMask(255),
 			OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
 			PHOTON_RAY_TYPE,            // SBT offset
-			RAY_TYPE_COUNT,             // SBT stride
+			RAY_TYPE_COUNT,               // SBT stride
 			PHOTON_RAY_TYPE,            // missSBTIndex 
-			depth);
+			u0,u1);
 
-		// compute a test pattern based on pixel ID
-		//const int ix = optixGetLaunchIndex().x;
-		const int iy = optixGetLaunchIndex().y;
-		const int accumID = optixLaunchParams.frame.accumID;
-		const auto& camera = optixLaunchParams.camera;
+		printf("profundidad %f \n", prd.depth);
+		prd.depth = 1000;
+		printf("profundidad %f \n", prd.depth);
 
-		PRD prd;
-		prd.random.init(ix + accumID * optixLaunchParams.frame.size.x,
-			iy + accumID * optixLaunchParams.frame.size.y);
-		prd.pixelColor = vec3f(0.f);
+		//int numPixelSamples = NUM_PIXEL_SAMPLES;
 
-		// the values we store the PRD pointer in:
-		uint32_t u0, u1;
-		packPointer(&prd, u0, u1);
+		//vec3f pixelColor = 0.f;
+		//for (int sampleID = 0; sampleID < numPixelSamples; sampleID++) {
+		//	// normalized screen plane position, in [0,1]^2
+		//	const vec2f screen(vec2f(ix + prd.random(), iy + prd.random())
+		//		/ vec2f(optixLaunchParams.frame.size));
 
-		int numPixelSamples = NUM_PIXEL_SAMPLES;
+		//	// generate ray direction
+		//	vec3f rayDir = normalize(camera.direction
+		//		+ (screen.x - 0.5f) * camera.horizontal
+		//		+ (screen.y - 0.5f) * camera.vertical);
 
-		vec3f pixelColor = 0.f;
-		for (int sampleID = 0; sampleID < numPixelSamples; sampleID++) {
-			// normalized screen plane position, in [0,1]^2
-			const vec2f screen(vec2f(ix + prd.random(), iy + prd.random())
-				/ vec2f(optixLaunchParams.frame.size));
+		//	optixTrace(optixLaunchParams.traversable,
+		//		camera.position,
+		//		rayDir,
+		//		0.f,    // tmin
+		//		1e20f,  // tmax
+		//		0.0f,   // rayTime
+		//		OptixVisibilityMask(255),
+		//		OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+		//		PHOTON_RAY_TYPE,            // SBT offset
+		//		RAY_TYPE_COUNT,               // SBT stride
+		//		PHOTON_RAY_TYPE,            // missSBTIndex 
+		//		u0, u1);
+		//	pixelColor += prd.pixelColor;
+		//}
 
-			// generate ray direction
-			vec3f rayDir = normalize(camera.direction
-				+ (screen.x - 0.5f) * camera.horizontal
-				+ (screen.y - 0.5f) * camera.vertical);
+		//const int r = int(255.99f * min(pixelColor.x / numPixelSamples, 1.f));
+		//const int g = int(255.99f * min(pixelColor.y / numPixelSamples, 1.f));
+		//const int b = int(255.99f * min(pixelColor.z / numPixelSamples, 1.f));
 
-			optixTrace(optixLaunchParams.traversable,
-				camera.position,
-				rayDir,
-				0.f,    // tmin
-				1e20f,  // tmax
-				0.0f,   // rayTime
-				OptixVisibilityMask(255),
-				OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
-				PHOTON_RAY_TYPE,            // SBT offset
-				RAY_TYPE_COUNT,               // SBT stride
-				PHOTON_RAY_TYPE,            // missSBTIndex 
-				u0, u1);
-			pixelColor += prd.pixelColor;
-		}
+		//// convert to 32-bit rgba value (we explicitly set alpha to 0xff
+		//// to make stb_image_write happy ...
+		//const uint32_t rgba = 0xff000000
+		//	| (r << 0) | (g << 8) | (b << 16);
 
-		const int r = int(255.99f * min(pixelColor.x / numPixelSamples, 1.f));
-		const int g = int(255.99f * min(pixelColor.y / numPixelSamples, 1.f));
-		const int b = int(255.99f * min(pixelColor.z / numPixelSamples, 1.f));
-
-		// convert to 32-bit rgba value (we explicitly set alpha to 0xff
-		// to make stb_image_write happy ...
-		const uint32_t rgba = 0xff000000
-			| (r << 0) | (g << 8) | (b << 16);
-
-		// and write to frame buffer ...
-		const uint32_t fbIndex = ix + iy * optixLaunchParams.frame.size.x;
-		optixLaunchParams.frame.colorBuffer[fbIndex] = rgba;
+		//// and write to frame buffer ...
+		//const uint32_t fbIndex = ix + iy * optixLaunchParams.frame.size.x;
+		//optixLaunchParams.frame.colorBuffer[fbIndex] = rgba;
 	}
 	//------------------------------------------------------------------------------
 	// ray gen program - the actual rendering happens in here
