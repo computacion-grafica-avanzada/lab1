@@ -54,7 +54,15 @@ namespace osc {
       vec3f origin, normal, power;
     } light;
 
-    double** halton;
+    struct {
+        int prueba;
+    } funca;
+
+    vec2f* halton;
+
+    int solo;
+
+    int* ji;
     
     OptixTraversableHandle traversable;
   };

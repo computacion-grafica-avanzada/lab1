@@ -58,20 +58,32 @@ namespace osc {
 	{
 		initOptix();
 
-		std::vector<double*> haltons;
-		for (int i = 0; i < 10000; i++) {
-			haltons.push_back(halton(i, 2));
+		std::vector<vec2f> haltons;
+		for (int i = 0; i < 10; i++) {
+			double* numeros = halton(i, 2);
+			haltons.push_back(vec2f((float)numeros[0],(float)numeros[1]));
+			std::cout << numeros[0] << " " << numeros[1] << std::endl;
 			//std::cout << haltons[i][0] << " " << haltons[i][1] << std::endl;
 		}
 		haltonNumbers.alloc_and_upload(haltons);
 		// update the launch parameters that we'll pass to the optix
 		// launch:
-		launchParams.halton = (double**)haltonNumbers.d_pointer();
+		//launchParams.halton = new double*[10000];
+		launchParams.halton = (vec2f*)haltonNumbers.d_pointer();
+		//for (int i = 0; i < 10000; i++) {
+		//	std::cout << launchParams.halton[i][0] << " " << std::endl;
+		//}
 
+		std::vector<int> we = { 1,2,3,4 };
+		numeros.alloc_and_upload(we);
+		launchParams.ji = (int*)numeros.d_pointer();
 
 		launchParams.light.origin = light.origin;
 		launchParams.light.normal = light.normal;
 		launchParams.light.power = light.power;
+
+		launchParams.funca.prueba = 1234;
+		launchParams.solo = 20000;
 		
 		std::cout << "#osc: creating optix context ..." << std::endl;
 		createContext();
@@ -723,7 +735,6 @@ namespace osc {
 	{
 		if (!photonMapDone) {
 			launchParamsBuffer2.upload(&launchParams, 1);
-			launchParams.frame.accumID++;
 
 			OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
 				pipeline, stream,
@@ -732,8 +743,8 @@ namespace osc {
 				launchParamsBuffer2.sizeInBytes,
 				&sbt2,
 				/*! dimensions of the launch: */
-				500,
-				launchParams.frame.size.y,
+				10,
+				1,
 				1
 			));
 			photonMapDone = true;
