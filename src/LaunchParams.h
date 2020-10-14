@@ -51,7 +51,7 @@ namespace osc {
     } camera;
 
     struct {
-      vec3f origin, normal, power;
+      vec3f origin, normal, photonPower;
     } light;
 
     struct {

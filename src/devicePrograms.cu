@@ -54,6 +54,7 @@ namespace osc {
 
 	struct PhotonPRD {
 		Random random;
+		vec3f power;
 		unsigned int depth;
 	};
 
@@ -126,6 +127,16 @@ namespace osc {
 		V = cross(W, U);
 	}
 
+	static __device__ __inline__ float max(const vec3f& vec) {
+		if ((vec.x > vec.y) && (vec.x > vec.z))
+			return vec.x;
+		
+		if (vec.y > vec.z)
+			return vec.y;
+		
+		return vec.z;
+	}
+
 	//------------------------------------------------------------------------------
 	// closest hit and anyhit programs for radiance-type rays.
 	//
@@ -143,7 +154,8 @@ namespace osc {
 
 	extern "C" __global__ void __closesthit__photon()
 	{
-		/* not going to be used ... */
+		const TriangleMeshSBTData& sbtData = *(const TriangleMeshSBTData*)optixGetSbtDataPointer();
+
 		PhotonPRD& prd = *(PhotonPRD*)getPRD<PhotonPRD>();
 		prd.depth = prd.random() * 100;
 
@@ -153,6 +165,63 @@ namespace osc {
 		//setPhotonPRD(prd);
 		printf("hit %i \n", prd.depth);
 
+		float coin = prd.random();
+		// diffuse component is color for now
+		float Pd = max(sbtData.color * prd.power) / max(prd.power);
+		printf("color %f %f %f maximo %f prob difuso %f mult %f %f %f\n", sbtData.color.x, sbtData.color.y, sbtData.color.z, max(sbtData.color), Pd, (sbtData.color * prd.power).x, (sbtData.color * prd.power).y, (sbtData.color * prd.power).z);
+
+		if (coin <= Pd) {
+			//diffuse
+			const int ix = optixGetLaunchIndex().x;
+
+			uint32_t u0, u1;
+			packPointer(&prd, u0, u1);
+
+			// obtain random direction
+			vec3f U, V, W, direction;
+			create_onb(optixLaunchParams.light.normal, U, V, W);
+			sampleUnitHemisphere(optixLaunchParams.halton[ix], U, V, W, direction);
+			printf("direction %f %f %f \n", direction.x, direction.y, direction.z);
+
+			const vec3f ray_orig = optixGetWorldRayOrigin();
+			const vec3f ray_dir = optixGetWorldRayDirection();
+			const float ray_t = optixGetRayTmax();
+
+			vec3f hit_point = ray_orig + ray_t * ray_dir;
+			
+			//const int   primID = optixGetPrimitiveIndex();
+			//const vec3i index = sbtData.index[primID];
+			//const float u = optixGetTriangleBarycentrics().x;
+			//const float v = optixGetTriangleBarycentrics().y;
+			//const vec3f surfPos
+			//	= (1.f - u - v) * sbtData.vertex[index.x]
+			//	+ u * sbtData.vertex[index.y]
+			//	+ v * sbtData.vertex[index.z];
+			//
+			//printf("position %f %f %f weird %f %f %f \n", hit_point.x, hit_point.y, hit_point.z, surfPos.x, surfPos.y, surfPos.z);
+
+
+			//optixTrace(
+			//	optixLaunchParams.traversable,
+			//	optixLaunchParams.light.origin,
+			//	direction,
+			//	0.f,							// tmin
+			//	1e20f,							// tmax
+			//	0.0f,							// rayTime
+			//	OptixVisibilityMask(255),
+			//	OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
+			//	PHOTON_RAY_TYPE,				// SBT offset
+			//	RAY_TYPE_COUNT,					// SBT stride
+			//	PHOTON_RAY_TYPE,				// missSBTIndex 
+			//	//prd.depth						// reinterpret_cast<unsigned int&>(prd.depth)
+			//	u0, u1
+			//);
+		}
+		else {
+			// absorption
+		}
+	
+		
 		// ruleta rusa
 		// en el caso difuso si depth es 0 no se guarda marca
 		// chequear depth+1 menor a MAX
@@ -263,7 +332,7 @@ namespace osc {
 					u0, u1);
 				pixelColor
 					+= lightVisibility
-					* optixLaunchParams.light.power
+					* optixLaunchParams.light.photonPower
 					* diffuseColor
 					* (NdotL / (lightDist * lightDist * numLightSamples));
 			}
@@ -331,6 +400,8 @@ namespace osc {
 		PhotonPRD prd;
 		prd.random.init(ix, ix * optixLaunchParams.frame.size.x);
 		prd.depth = 0;
+		prd.power = optixLaunchParams.light.photonPower;
+		printf("power photon %f %f %f \n", prd.power.x, prd.power.y, prd.power.z);
 
 		uint32_t u0, u1;
 		packPointer(&prd, u0, u1);

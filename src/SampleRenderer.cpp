@@ -20,6 +20,8 @@
 #include <optix_function_table_definition.h>
 #include "halton.h"
 
+const int MAX_NUM_PHOTONS = 30;
+
 /*! \namespace osc - Optix Siggraph Course */
 namespace osc {
 
@@ -59,7 +61,7 @@ namespace osc {
 		initOptix();
 
 		std::vector<vec2f> haltons;
-		for (int i = 0; i < 10; i++) {
+		for (int i = 0; i < MAX_NUM_PHOTONS; i++) {
 			double* numeros = halton(i, 2);
 			haltons.push_back(vec2f((float)numeros[0],(float)numeros[1]));
 			std::cout << numeros[0] << " " << numeros[1] << std::endl;
@@ -80,7 +82,9 @@ namespace osc {
 
 		launchParams.light.origin = light.origin;
 		launchParams.light.normal = light.normal;
-		launchParams.light.power = light.power;
+		launchParams.light.photonPower = light.power / light.numberPhotons;
+
+		std::cout << launchParams.light.photonPower << std::endl;
 
 		launchParams.funca.prueba = 1234;
 		launchParams.solo = 20000;
@@ -743,7 +747,7 @@ namespace osc {
 				launchParamsBuffer2.sizeInBytes,
 				&sbt2,
 				/*! dimensions of the launch: */
-				10,
+				MAX_NUM_PHOTONS,
 				1,
 				1
 			));

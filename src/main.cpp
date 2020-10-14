@@ -19,7 +19,6 @@
 // our helper library for window handling
 #include "glfWindow/GLFWindow.h"
 #include <GL/gl.h>
-#include "halton.h"
 
 /*! \namespace osc - Optix Siggraph Course */
 namespace osc {
@@ -116,12 +115,6 @@ namespace osc {
 		try {
 			Model* model = loadOBJ("../../models/CornellBox-Empty-RG.obj");
 
-			//for (int i = 0; i < 10000; i++) {
-			//    double* rand = halton(i, 2);
-			//    double* rand2 = halton(i, 2);
-			//    std::cout << *(rand) << " " << *(rand2) << std::endl;
-			//}
-
 			Camera camera = {
 				/*from*/vec3f(0.f, 0.f, 5.f),
 				/* at */model->bounds.center(),
@@ -134,7 +127,8 @@ namespace osc {
 			//                    /* edge 2 */ vec3f(.23f,0,.16f),
 			//                    /* power */  vec3f(3.f) };
 
-			PointLight light = { vec3f(0,1.97,0), vec3f(0,-1,0), vec3f(3.f) };
+			// TODO set number of photons correwctly
+			PointLight light = { 30, vec3f(0,1.97,0), vec3f(0,-1,0), vec3f(100.f) };
 
 			// something approximating the scale of the world, so the
 			// camera knows how much to move for any given user interaction:
