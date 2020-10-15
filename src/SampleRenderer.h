@@ -20,6 +20,7 @@
 #include "CUDABuffer.h"
 #include "LaunchParams.h"
 #include "Model.h"
+#include "Photon.h"
 
 /*! \namespace osc - Optix Siggraph Course */
 namespace osc {
@@ -55,6 +56,7 @@ namespace osc {
 
 		/*! download the rendered color buffer */
 		void downloadPixels(uint32_t h_pixels[]);
+		void downloadPhotons(PhotonPrint h_pixels[]);
 
 		/*! set camera to render with */
 		void setCamera(const Camera& camera);
@@ -174,6 +176,8 @@ namespace osc {
 		bool photonMapDone = false;
 
 		CUDABuffer numeros;
+
+		CUDABuffer photons;
 	};
 
 } // ::osc

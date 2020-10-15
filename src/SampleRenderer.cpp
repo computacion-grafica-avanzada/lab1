@@ -60,6 +60,12 @@ namespace osc {
 	{
 		initOptix();
 
+		PhotonPrint ph;
+		// 10 is max depth
+		std::vector<PhotonPrint> photonVec(MAX_NUM_PHOTONS * 10, ph);
+		photons.alloc_and_upload(photonVec);
+		launchParams.photons = (PhotonPrint*)photons.d_pointer();
+
 		std::vector<vec2f> haltons;
 		for (int i = 0; i < MAX_NUM_PHOTONS; i++) {
 			double* numeros = halton(i, 2);
@@ -752,6 +758,10 @@ namespace osc {
 				1
 			));
 			photonMapDone = true;
+
+			std::vector<PhotonPrint> photonsVec;
+			downloadPhotons(photonsVec.data());
+			//std::cout << photonsVec[0].position.x << std::endl;
 		}
 
 
@@ -771,7 +781,7 @@ namespace osc {
 			&sbt,
 			/*! dimensions of the launch: */
 			launchParams.frame.size.x,
-			500,
+			launchParams.frame.size.y,
 			1
 		));
 
@@ -821,6 +831,11 @@ namespace osc {
 	{
 		colorBuffer.download(h_pixels,
 			launchParams.frame.size.x * launchParams.frame.size.y);
+	}
+
+	void SampleRenderer::downloadPhotons(PhotonPrint h_pixels[])
+	{
+		photons.download(h_pixels, MAX_NUM_PHOTONS*10);
 	}
 
 } // ::osc
