@@ -19,6 +19,7 @@
 // this include may only appear in a single source file:
 #include <optix_function_table_definition.h>
 #include "halton.h"
+#include "PhotonMap.h"
 
 const int MAX_NUM_PHOTONS = 30;
 
@@ -60,10 +61,8 @@ namespace osc {
 	{
 		initOptix();
 
-		PhotonPrint ph;
-		// 10 is max depth
-		std::vector<PhotonPrint> photonVec(MAX_NUM_PHOTONS * 10, ph);
-		photons.alloc_and_upload(photonVec);
+		// resize our cuda frame buffer
+		photons.resize(MAX_NUM_PHOTONS * 10 * sizeof(PhotonPrint));
 		launchParams.photons = (PhotonPrint*)photons.d_pointer();
 
 		std::vector<vec2f> haltons;
@@ -127,6 +126,40 @@ namespace osc {
 		std::cout << GDT_TERMINAL_GREEN;
 		std::cout << "#osc: Optix 7 Sample fully set up" << std::endl;
 		std::cout << GDT_TERMINAL_DEFAULT;
+
+		if (!photonMapDone) {
+			launchParamsBuffer2.upload(&launchParams, 1);
+
+			OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
+				pipeline, stream,
+				/*! parameters and SBT */
+				launchParamsBuffer2.d_pointer(),
+				launchParamsBuffer2.sizeInBytes,
+				&sbt2,
+				/*! dimensions of the launch: */
+				MAX_NUM_PHOTONS,
+				1,
+				1
+			));
+			photonMapDone = true;
+
+			// obtain photon traces
+			std::vector<PhotonPrint> photonsVec(MAX_NUM_PHOTONS*10);
+			downloadPhotons(photonsVec.data());
+
+			std::vector<Photon> photonMapData;
+			for (int i = 0; i < photonsVec.size(); i++) {
+				if (
+					(photonsVec[i].position != vec3f(0)) && 
+					(photonsVec[i].direction != vec3f(0)) &&
+					(photonsVec[i].power != vec3f(0))
+				) {
+					Photon ph(photonsVec[i].position, photonsVec[i].direction, photonsVec[i].power);
+					photonMapData.push_back(ph);
+				}
+			}
+			PhotonMap photonMap = PhotonMap(photonMapData);
+		}
 	}
 
 	void SampleRenderer::createTextures()
@@ -758,9 +791,9 @@ namespace osc {
 				1
 			));
 			photonMapDone = true;
-
-			std::vector<PhotonPrint> photonsVec;
-			downloadPhotons(photonsVec.data());
+			//CUDA_SYNC_CHECK();
+			//std::vector<PhotonPrint> photonsVec;
+			//downloadPhotons(photonsVec.data());
 			//std::cout << photonsVec[0].position.x << std::endl;
 		}
 
@@ -833,7 +866,7 @@ namespace osc {
 			launchParams.frame.size.x * launchParams.frame.size.y);
 	}
 
-	void SampleRenderer::downloadPhotons(PhotonPrint h_pixels[])
+	void SampleRenderer::downloadPhotons(PhotonPrint* h_pixels)
 	{
 		photons.download(h_pixels, MAX_NUM_PHOTONS*10);
 	}

@@ -117,29 +117,6 @@ namespace osc {
 		try {
 			Model* model = loadOBJ("../../models/CornellBox-Empty-RG.obj");
 
-			Photon a = Photon(vec3f(0, 0, 0), vec3f(0, 0, 0), vec3f(0, 0, 0));
-			Photon b = Photon(vec3f(1, 1, 1), vec3f(1, 1, 1), vec3f(1, 1, 1));
-			Photon c = Photon(vec3f(2, 2, 2), vec3f(2, 2, 2), vec3f(2, 2, 2));
-			Photon d = Photon(vec3f(3, 3, 3), vec3f(3, 3, 3), vec3f(3, 3, 3));
-			Photon e = Photon(vec3f(4, 4, 4), vec3f(4, 4, 4), vec3f(4, 4, 4));
-			vector<Photon> array;
-			array.push_back(a);
-			array.push_back(b);
-			array.push_back(c);
-			array.push_back(d);
-			array.push_back(e);
-			PhotonMap mymap = PhotonMap(array);
-			vec3f* normal = NULL;
-			vec3f irrad;
-			bool getIrradiance = mymap.getIrradiance(vec3f(2, 2, 2), normal, 30, 30, irrad);
-			//vector<Photon*>* getNeighbourhood = mymap.getNeighbourhood(vec3f(2, 2, 2), normal, 30, 30);
-
-			std::cout << "-----------------------" << std::endl;
-			PhotonsIterator* i = mymap.iterator();
-			while (i->hasNext()) {
-				std::cout << *i->next() << std::endl;
-			}
-
 			Camera camera = {
 				/*from*/vec3f(0.f, 0.f, 5.f),
 				/* at */model->bounds.center(),
