@@ -5,12 +5,7 @@
 void PhotonMap::_build(const vector<Photon>& photons)
 {
     _storedPhotons = photons.size();
-    
-#ifdef WIN32
-    _map = (Photon*) malloc((_storedPhotons+1) * sizeof(Photon));
-#else
     _map = new Photon [_storedPhotons];
-#endif
     
     if (!_map) {
 		_storedPhotons = 0;
