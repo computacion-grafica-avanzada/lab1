@@ -18,6 +18,7 @@
 
 #include "gdt/math/vec.h"
 #include "optix7.h"
+#include "Photon.h"
 
 namespace osc {
   using namespace gdt;
@@ -35,6 +36,10 @@ namespace osc {
     cudaTextureObject_t texture;
   };
   
+  struct PhotonPrint {
+      vec3f position, direction, power;
+  };
+
   struct LaunchParams
   {
     struct {
@@ -63,6 +68,8 @@ namespace osc {
     int solo;
 
     int* ji;
+
+    PhotonPrint* photons;
     
     OptixTraversableHandle traversable;
   };
