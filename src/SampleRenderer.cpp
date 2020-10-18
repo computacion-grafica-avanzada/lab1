@@ -158,7 +158,7 @@ namespace osc {
 					photonMapData.push_back(ph);
 				}
 			}
-			PhotonMap photonMap = PhotonMap(photonMapData);
+			//PhotonMap photonMap = PhotonMap(photonMapData);
 		}
 	}
 
@@ -688,6 +688,10 @@ namespace osc {
 				HitgroupRecord rec;
 				OPTIX_CHECK(optixSbtRecordPackHeader(hitgroupPGs[rayID], &rec));
 				rec.data.color = mesh->diffuse;
+				rec.data.specular = mesh->specular;
+				rec.data.transmission = mesh->transmission;
+				rec.data.ior = mesh->ior;
+				rec.data.phong = mesh->phong;
 				if (mesh->diffuseTextureID >= 0) {
 					rec.data.hasTexture = true;
 					rec.data.texture = textureObjects[mesh->diffuseTextureID];
@@ -751,6 +755,10 @@ namespace osc {
 				HitgroupRecord rec;
 				OPTIX_CHECK(optixSbtRecordPackHeader(hitgroupPGs[rayID], &rec));
 				rec.data.color = mesh->diffuse;
+				rec.data.specular = mesh->specular;
+				rec.data.transmission = mesh->transmission;
+				rec.data.ior = mesh->ior;
+				rec.data.phong = mesh->phong;
 				if (mesh->diffuseTextureID >= 0) {
 					rec.data.hasTexture = true;
 					rec.data.texture = textureObjects[mesh->diffuseTextureID];

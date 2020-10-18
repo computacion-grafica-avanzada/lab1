@@ -190,6 +190,11 @@ namespace osc {
                     addVertex(mesh, attributes, idx2, knownVertices));
           mesh->index.push_back(idx);
           mesh->diffuse = (const vec3f&)materials[materialID].diffuse;
+          mesh->specular = (const vec3f&)materials[materialID].specular;
+          mesh->transmission = (const vec3f&)materials[materialID].transmittance;
+          mesh->ior = materials[materialID].ior;
+          mesh->phong = materials[materialID].shininess;
+
           mesh->diffuseTextureID = loadTexture(model,
                                                knownTextures,
                                                materials[materialID].diffuse_texname,
