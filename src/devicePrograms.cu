@@ -51,6 +51,8 @@ namespace osc {
 	struct PRD {
 		Random random;
 		vec3f  pixelColor;
+		int depth;
+		int currentIor;
 	};
 
 	struct PhotonPRD {
@@ -95,6 +97,10 @@ namespace osc {
 		const uint32_t u0 = optixGetPayload_0();
 		const uint32_t u1 = optixGetPayload_1();
 		return reinterpret_cast<T*>(unpackPointer(u0, u1));
+	}
+
+	static __device__ __inline__ vec3f reflect(vec3f v, vec3f n) {
+		return ((dot(v, n) / dot(n, n)) * n) * 2 - v;
 	}
 
 	// sample hemisphere with cosine density
@@ -175,6 +181,21 @@ namespace osc {
 		const float ray_t = optixGetRayTmax();
 
 		vec3f hit_point = ray_orig + ray_t * ray_dir;
+
+		printf("spec %f %f %f tran %f %f %f ior %f phong %f \n",
+			sbtData.specular.x,
+			sbtData.specular.y,
+			sbtData.specular.z,
+			sbtData.transmission.x,
+			sbtData.transmission.y,
+			sbtData.transmission.z,
+			sbtData.ior,
+			sbtData.phong
+		);
+
+		//for (int i = 0; i < hola.size(); i++) {
+		//	printf("thrust %i\n", hola[i]);
+		//}
 
 		// ------------------------------------------------------------------
 		// compute normal, using either shading normal (if avail), or
@@ -259,8 +280,17 @@ namespace osc {
 
 	extern "C" __global__ void __closesthit__radiance()
 	{
-		const TriangleMeshSBTData& sbtData
-			= *(const TriangleMeshSBTData*)optixGetSbtDataPointer();
+		// direct
+		//	rayos de sombra -> visibilidad de la luz * color difuso?
+		// specular and glossy
+		//	reflexiones y transmisiones como en ray tracing
+		// caustics
+		//	radiance estimate caustics map
+		// multiple diffuse reflections
+		//	primer paso, sacar radiancia del hit nomas
+		//	trazar reflexiones difusas y ver radiancia en mapa de fotones para cada uno
+
+		const TriangleMeshSBTData& sbtData = *(const TriangleMeshSBTData*)optixGetSbtDataPointer();
 		PRD& prd = *getPRD<PRD>();
 
 		// ------------------------------------------------------------------
@@ -279,41 +309,20 @@ namespace osc {
 		const vec3f& B = sbtData.vertex[index.y];
 		const vec3f& C = sbtData.vertex[index.z];
 		vec3f Ng = cross(B - A, C - A);
-		vec3f Ns = (sbtData.normal)
-			? ((1.f - u - v) * sbtData.normal[index.x]
-				+ u * sbtData.normal[index.y]
-				+ v * sbtData.normal[index.z])
-			: Ng;
 
 		// ------------------------------------------------------------------
 		// face-forward and normalize normals
 		// ------------------------------------------------------------------
 		const vec3f rayDir = optixGetWorldRayDirection();
 
-		if (dot(rayDir, Ng) > 0.f) Ng = -Ng;
+		float cosi = dot(rayDir, Ng);
+		if (cosi > 0.f) Ng = -Ng;
 		Ng = normalize(Ng);
 
-		if (dot(Ng, Ns) < 0.f)
-			Ns -= 2.f * dot(Ng, Ns) * Ng;
-		Ns = normalize(Ns);
-
-		// ------------------------------------------------------------------
-		// compute diffuse material color, including diffuse texture, if
-		// available
-		// ------------------------------------------------------------------
-		vec3f diffuseColor = sbtData.color;
-		if (sbtData.hasTexture && sbtData.texcoord) {
-			const vec2f tc
-				= (1.f - u - v) * sbtData.texcoord[index.x]
-				+ u * sbtData.texcoord[index.y]
-				+ v * sbtData.texcoord[index.z];
-
-			vec4f fromTexture = tex2D<float4>(sbtData.texture, tc.x, tc.y);
-			diffuseColor *= (vec3f)fromTexture;
-		}
-
 		// start with some ambient term
-		vec3f pixelColor = (0.1f + 0.2f * fabsf(dot(Ns, rayDir))) * diffuseColor;
+		//vec3f pixelColor = (0.1f + 0.2f * fabsf(dot(Ns, rayDir))) * diffuseColor;
+		vec3f pixelColor(0.f,0.f,0.f);
+		//printf("pixel1 %f %f %f pixel2 %f %f %f\n", pixelColor.x, pixelColor.y, pixelColor.z, pixelColor1.x, pixelColor1.y, pixelColor1.z);
 
 		// ------------------------------------------------------------------
 		// compute shadow
@@ -323,26 +332,36 @@ namespace osc {
 			+ u * sbtData.vertex[index.y]
 			+ v * sbtData.vertex[index.z];
 
+		const vec3f ray_orig = optixGetWorldRayOrigin();
+		const vec3f ray_dir = optixGetWorldRayDirection();
+		const float ray_t = optixGetRayTmax();
+
+		vec3f hit_point = ray_orig + ray_t * ray_dir;
+		//printf("hit %f %f %f surf %f %f %f \n", hit_point.x, hit_point.y, hit_point.z, surfPos.x, surfPos.y, surfPos.z);
+
+		//for each light todo
 		const int numLightSamples = NUM_LIGHT_SAMPLES;
 		for (int lightSampleID = 0; lightSampleID < numLightSamples; lightSampleID++) {
+
 			// produce random light sample
-			const vec3f lightPos
-				= optixLaunchParams.light.origin;
+			const vec3f lightPos = optixLaunchParams.light.origin;
 			//+ prd.random() * optixLaunchParams.light.du
 			//+ prd.random() * optixLaunchParams.light.dv;
 			vec3f lightDir = lightPos - surfPos;
-			float lightDist = gdt::length(lightDir);
+			float lightDist = length(lightDir);
 			lightDir = normalize(lightDir);
 
 			// trace shadow ray:
-			const float NdotL = dot(lightDir, Ns);
+			const float NdotL = dot(lightDir, Ng);
 			if (NdotL >= 0.f) {
 				vec3f lightVisibility = 0.f;
+				
 				// the values we store the PRD pointer in:
 				uint32_t u0, u1;
 				packPointer(&lightVisibility, u0, u1);
+
 				optixTrace(optixLaunchParams.traversable,
-					surfPos + 1e-3f * Ng,
+					hit_point,
 					lightDir,
 					1e-3f,      // tmin
 					lightDist * (1.f - 1e-3f),  // tmax
@@ -355,17 +374,92 @@ namespace osc {
 					| OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT
 					| OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
 					SHADOW_RAY_TYPE,            // SBT offset
-					RAY_TYPE_COUNT,               // SBT stride
+					RAY_TYPE_COUNT,             // SBT stride
 					SHADOW_RAY_TYPE,            // missSBTIndex 
 					u0, u1);
-				pixelColor
-					+= lightVisibility
-					* optixLaunchParams.light.photonPower
-					* diffuseColor
-					* (NdotL / (lightDist * lightDist * numLightSamples));
+
+				float atenuation = 1 / (lightDist * lightDist);
+				vec3f base = lightVisibility * atenuation * optixLaunchParams.light.photonPower;
+
+				vec3f reflected = ((dot(lightDir, Ng) / dot(Ng,Ng)) * Ng) * 2 - lightDir;
+				//printf("light %f %f %f reflect %f %f %f normal %f %f %f\n", lightDir.x, lightDir.y, lightDir.z, reflected.x, reflected.y, reflected.z, Ng.x,Ng.y,Ng.z);
+				float a = dot(reflected, -rayDir);
+				float RdotV = a < 0 ? 0 : a;
+
+				pixelColor += base * sbtData.color * (NdotL / numLightSamples);
+				pixelColor += base * sbtData.specular * pow(RdotV, sbtData.phong) / numLightSamples;
 			}
 		}
 
+		///*Regresar si la prof. es excesiva */
+		if (prd.depth < MAX_DEPTH) {
+			prd.depth += 1;
+
+			// reflection component
+			if (sbtData.specular.x > 0 && sbtData.specular.y > 0 && sbtData.specular.z > 0) {
+				vec3f reflectDir = reflect(-rayDir, Ng); //rayo en la direccion de reflexion desde punto;
+
+				uint32_t u0, u1;
+				packPointer(&prd, u0, u1);
+
+				optixTrace(optixLaunchParams.traversable,
+					hit_point,
+					reflectDir,
+					1.e-4f,    // tmin
+					1e20f,  // tmax
+					0.0f,   // rayTime
+					OptixVisibilityMask(255),
+					OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+					RADIANCE_RAY_TYPE,            // SBT offset
+					RAY_TYPE_COUNT,               // SBT stride
+					RADIANCE_RAY_TYPE,            // missSBTIndex 
+					u0, u1
+				);
+
+				pixelColor += sbtData.specular * prd.pixelColor;
+			}
+
+			// refraction component
+			if (sbtData.transmission.x > 0 && sbtData.transmission.y > 0 && sbtData.transmission.z > 0) {
+				float nit;
+				// ray comes from outside surface
+				if (cosi < 0) {
+					nit = prd.currentIor / sbtData.ior;
+					cosi = -cosi;
+					prd.currentIor = sbtData.ior;
+				}
+				// ray comes from inside surface
+				else {
+					// we assume that when it leaves the surface, it goes into the air
+					nit = sbtData.ior;
+				}
+
+				float testrit = nit * nit * (1 - cosi * cosi);
+
+				if (testrit <= 1) {
+					vec3f refractionDir = nit * rayDir + (nit * cosi - sqrtf(1 - testrit)) * Ng;
+
+					uint32_t u0, u1;
+					packPointer(&prd, u0, u1);
+
+					optixTrace(optixLaunchParams.traversable,
+						surfPos,
+						refractionDir,
+						1.e-4f,    // tmin
+						1e20f,  // tmax
+						0.0f,   // rayTime
+						OptixVisibilityMask(255),
+						OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+						RADIANCE_RAY_TYPE,            // SBT offset
+						RAY_TYPE_COUNT,               // SBT stride
+						RADIANCE_RAY_TYPE,            // missSBTIndex 
+						u0, u1
+					);
+
+					pixelColor += sbtData.transmission * prd.pixelColor;
+				}
+			}
+		}
 		prd.pixelColor = pixelColor;
 	}
 
@@ -393,7 +487,7 @@ namespace osc {
 	{
 		PRD& prd = *getPRD<PRD>();
 		// set to constant white as background color
-		//prd.pixelColor = vec3f(optixLaunchParams.halton[9000]);
+		prd.pixelColor = vec3f(1,0,0);
 	}
 
 	extern "C" __global__ void __miss__shadow()
@@ -470,9 +564,10 @@ namespace osc {
 		const auto& camera = optixLaunchParams.camera;
 
 		PRD prd;
-		prd.random.init(ix + accumID * optixLaunchParams.frame.size.x,
-			iy + accumID * optixLaunchParams.frame.size.y);
+		prd.random.init(ix + accumID * optixLaunchParams.frame.size.x, iy + accumID * optixLaunchParams.frame.size.y);
 		prd.pixelColor = vec3f(0.f);
+		prd.depth = 0;
+		prd.currentIor = 1;
 
 		// the values we store the PRD pointer in:
 		uint32_t u0, u1;
@@ -483,11 +578,10 @@ namespace osc {
 		vec3f pixelColor = 0.f;
 		for (int sampleID = 0; sampleID < numPixelSamples; sampleID++) {
 			// normalized screen plane position, in [0,1]^2
-			const vec2f screen(vec2f(ix + prd.random(), iy + prd.random())
-				/ vec2f(optixLaunchParams.frame.size));
+			const vec2f screen(vec2f(ix + prd.random(), iy + prd.random()) / vec2f(optixLaunchParams.frame.size));
 
 			// generate ray direction
-			vec3f rayDir = normalize(camera.direction
+			vec3f rayDir = normalize(camera.direction 
 				+ (screen.x - 0.5f) * camera.horizontal
 				+ (screen.y - 0.5f) * camera.vertical);
 

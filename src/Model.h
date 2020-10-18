@@ -32,8 +32,12 @@ namespace osc {
     std::vector<vec3i> index;
 
     // material data:
-    vec3f              diffuse;
-    int                diffuseTextureID { -1 };
+    vec3f diffuse;          // diffuse coefficient
+    vec3f specular;         // specular coefficient
+    vec3f transmission;     // transmission coefficient
+    float ior;              // index of refraction
+    float phong;            // phong exponent
+    int   diffuseTextureID { -1 };
   };
 
   struct PointLight {

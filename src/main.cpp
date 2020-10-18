@@ -115,7 +115,7 @@ namespace osc {
 	extern "C" int main(int ac, char** av)
 	{
 		try {
-			Model* model = loadOBJ("../../models/CornellBox-Empty-RG.obj");
+			Model* model = loadOBJ("../../models/CornellBox-Mirror.obj");
 
 			Camera camera = {
 				/*from*/vec3f(0.f, 0.f, 5.f),
@@ -130,7 +130,7 @@ namespace osc {
 			//                    /* power */  vec3f(3.f) };
 
 			// TODO set number of photons correwctly
-			PointLight light = { 30, vec3f(0,1.97,0), vec3f(0,-1,0), vec3f(100.f) };
+			PointLight light = { 30, vec3f(0,1.98,0), vec3f(0,-1,0), vec3f(100.f) };
 
 			// something approximating the scale of the world, so the
 			// camera knows how much to move for any given user interaction:
