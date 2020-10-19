@@ -27,6 +27,7 @@ const int MAX_NUM_PHOTONS = 30;
 namespace osc {
 
 	extern "C" char embedded_ptx_code[];
+	extern "C" char photon_ptx_code[];
 
 	/*! SBT record for a raygen program */
 	struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) RaygenRecord
@@ -430,6 +431,7 @@ namespace osc {
 		pipelineLinkOptions.maxTraceDepth = 2;
 
 		const std::string ptxCode = embedded_ptx_code;
+		const std::string ptxCodePhoton = photon_ptx_code;
 
 		char log[2048];
 		size_t sizeof_log = sizeof(log);
@@ -440,6 +442,18 @@ namespace osc {
 			ptxCode.size(),
 			log, &sizeof_log,
 			&module
+		));
+
+		char log2[2048];
+		size_t sizeof_log2 = sizeof(log2);
+
+		OPTIX_CHECK(optixModuleCreateFromPTX(optixContext,
+			&moduleCompileOptions,
+			&pipelineCompileOptions,
+			ptxCodePhoton.c_str(),
+			ptxCodePhoton.size(),
+			log2, &sizeof_log2,
+			&photonModule
 		));
 		if (sizeof_log > 1) PRINT(log);
 	}
@@ -452,15 +466,15 @@ namespace osc {
 		// we do a single ray gen program in this example:
 		raygenPGs.resize(2);
 
+		char log[2048];
+		size_t sizeof_log = sizeof(log);
+
 		OptixProgramGroupOptions pgOptions = {};
 		OptixProgramGroupDesc pgDesc = {};
 		pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
+
 		pgDesc.raygen.module = module;
 		pgDesc.raygen.entryFunctionName = "__raygen__renderFrame";
-
-		// OptixProgramGroup raypg;
-		char log[2048];
-		size_t sizeof_log = sizeof(log);
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
 			&pgDesc,
 			1,
@@ -469,6 +483,7 @@ namespace osc {
 			&raygenPGs[RADIANCE_RAY_TYPE]
 		));
 
+		pgDesc.raygen.module = photonModule;
 		pgDesc.raygen.entryFunctionName = "__raygen__renderPhoton";
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
 			&pgDesc,
@@ -493,11 +508,11 @@ namespace osc {
 		OptixProgramGroupOptions pgOptions = {};
 		OptixProgramGroupDesc pgDesc = {};
 		pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-		pgDesc.miss.module = module;
 		
 		// ------------------------------------------------------------------
 		// photon rays
 		// ------------------------------------------------------------------
+		pgDesc.miss.module = photonModule;
 		pgDesc.miss.entryFunctionName = "__miss__photon";
 
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
@@ -512,6 +527,7 @@ namespace osc {
 		// ------------------------------------------------------------------
 		// radiance rays
 		// ------------------------------------------------------------------
+		pgDesc.miss.module = module;
 		pgDesc.miss.entryFunctionName = "__miss__radiance";
 
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
@@ -550,13 +566,15 @@ namespace osc {
 		OptixProgramGroupOptions pgOptions = {};
 		OptixProgramGroupDesc    pgDesc = {};
 		pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
-		pgDesc.hitgroup.moduleCH = module;
-		pgDesc.hitgroup.moduleAH = module;
+
 
 		// -------------------------------------------------------
 		// photon rays
 		// -------------------------------------------------------
+		pgDesc.hitgroup.moduleCH = photonModule;
 		pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__photon";
+		
+		pgDesc.hitgroup.moduleAH = photonModule;
 		pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__photon";
 
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
@@ -571,7 +589,10 @@ namespace osc {
 		// -------------------------------------------------------
 		// radiance rays
 		// -------------------------------------------------------
+		pgDesc.hitgroup.moduleCH = module;
 		pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__radiance";
+		
+		pgDesc.hitgroup.moduleAH = module;
 		pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__radiance";
 
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
