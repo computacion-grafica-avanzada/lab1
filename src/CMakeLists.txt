@@ -19,9 +19,11 @@ find_package(OpenGL REQUIRED)
 include_directories(${OptiX_INCLUDE})
 
 cuda_compile_and_embed(embedded_ptx_code devicePrograms.cu)
+cuda_compile_and_embed(photon_ptx_code photonPrograms.cu)
 
 add_executable(ex10_softShadows
   ${embedded_ptx_code}
+  ${photon_ptx_code}
   optix7.h
   CUDABuffer.h
   SampleRenderer.h
@@ -36,6 +38,7 @@ add_executable(ex10_softShadows
   PhotonsIterator.h
   Vector3D.h
   Vector3D.cpp
+  Utils.h
   main.cpp
   )
 

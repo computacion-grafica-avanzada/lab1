@@ -123,6 +123,7 @@ namespace osc {
 
 		/*! @{ the module that contains out device programs */
 		OptixModule                 module;
+		OptixModule                 photonModule;
 		OptixModuleCompileOptions   moduleCompileOptions;
 		/* @} */
 
