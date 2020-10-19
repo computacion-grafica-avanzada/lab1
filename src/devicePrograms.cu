@@ -32,7 +32,7 @@
 using namespace osc;
 
 #define NUM_LIGHT_SAMPLES 1
-#define NUM_PIXEL_SAMPLES 16
+#define NUM_PIXEL_SAMPLES 4
 
 #define NUM_PHOTON_SAMPLES 10000
 #define MAX_DEPTH 10
@@ -139,10 +139,10 @@ namespace osc {
 	static __device__ __inline__ float max(const vec3f& vec) {
 		if ((vec.x > vec.y) && (vec.x > vec.z))
 			return vec.x;
-		
+
 		if (vec.y > vec.z)
 			return vec.y;
-		
+
 		return vec.z;
 	}
 
@@ -208,7 +208,7 @@ namespace osc {
 
 		if (dot(ray_dir, Ng) > 0.f) Ng = -Ng;
 		Ng = normalize(Ng);
-		
+
 		printf("normal %f %f %f \n", Ng.x, Ng.y, Ng.z);
 
 		//without random
@@ -227,7 +227,7 @@ namespace osc {
 		prd.depth += 1;
 		if (coin <= Pd) {
 			//diffuse
-			
+
 			// avoid first diffuse hit
 			if (prd.depth > 1) {
 				PhotonPrint pp = { hit_point, ray_dir, prd.power };
@@ -235,6 +235,7 @@ namespace osc {
 			}
 
 			if (prd.depth <= MAX_DEPTH) {
+
 				uint32_t u0, u1;
 				packPointer(&prd, u0, u1);
 
@@ -243,7 +244,7 @@ namespace osc {
 				create_onb(Ng, U, V, W);
 
 				sampleUnitHemisphere(optixLaunchParams.halton[rand_index].y, U, V, W, direction);
-			
+
 				printf("direction %f %f %f \n", direction.x, direction.y, direction.z);
 
 				prd.power = (prd.power * sbtData.color) / Pd;
@@ -269,8 +270,8 @@ namespace osc {
 		else {
 			// absorption check if need to store diffuse photons
 		}
-	
-		
+
+
 		// ruleta rusa
 		// en el caso difuso si depth es 0 no se guarda marca
 		// chequear depth+1 menor a MAX
@@ -355,7 +356,7 @@ namespace osc {
 			const float NdotL = dot(lightDir, Ng);
 			if (NdotL >= 0.f) {
 				vec3f lightVisibility = 1.f;
-				
+
 				// the values we store the PRD pointer in:
 				uint32_t u0, u1;
 				packPointer(&lightVisibility, u0, u1);
@@ -372,7 +373,7 @@ namespace osc {
 					// light was visible.
 					/*OPTIX_RAY_FLAG_DISABLE_ANYHIT
 					| OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT
-					|*/ 
+					|*/
 					OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
 					SHADOW_RAY_TYPE,            // SBT offset
 					RAY_TYPE_COUNT,             // SBT stride
@@ -383,7 +384,7 @@ namespace osc {
 				//float atenuation = 1;
 				vec3f base = lightVisibility * atenuation * optixLaunchParams.light.photonPower;
 
-				vec3f reflected = ((dot(lightDir, Ng) / dot(Ng,Ng)) * Ng) * 2 - lightDir;
+				vec3f reflected = ((dot(lightDir, Ng) / dot(Ng, Ng)) * Ng) * 2 - lightDir;
 				//printf("light %f %f %f reflect %f %f %f normal %f %f %f\n", lightDir.x, lightDir.y, lightDir.z, reflected.x, reflected.y, reflected.z, Ng.x,Ng.y,Ng.z);
 				float a = dot(reflected, -rayDir);
 				float RdotV = a < 0 ? 0 : a;
@@ -401,8 +402,13 @@ namespace osc {
 			if (sbtData.specular.x > 0 || sbtData.specular.y > 0 || sbtData.specular.z > 0) {
 				vec3f reflectDir = reflect(-rayDir, Ng); //rayo en la direccion de reflexion desde punto;
 
+				PRD reflection;
+				reflection.pixelColor = vec3f(0.f);
+				reflection.depth = prd.depth;
+				reflection.currentIor = prd.currentIor;
+
 				uint32_t u0, u1;
-				packPointer(&prd, u0, u1);
+				packPointer(&reflection, u0, u1);
 
 				optixTrace(optixLaunchParams.traversable,
 					hit_point,
@@ -418,18 +424,23 @@ namespace osc {
 					u0, u1
 				);
 
-				pixelColor += sbtData.specular * prd.pixelColor;
+				pixelColor += sbtData.specular * reflection.pixelColor;
 			}
 
 			// refraction component
 			if (sbtData.transmission.x > 0 || sbtData.transmission.y > 0 || sbtData.transmission.z > 0) {
 				//printf("hit algo\n");
 				float nit;
+				PRD refraction;
+				refraction.pixelColor = vec3f(0.f);
+				refraction.depth = prd.depth;
+				refraction.currentIor = prd.currentIor;
+
 				// ray comes from outside surface
 				if (cosi < 0) {
 					nit = prd.currentIor / sbtData.ior;
 					cosi = -cosi;
-					prd.currentIor = sbtData.ior;
+					refraction.currentIor = sbtData.ior;
 					//printf("holas");
 					//Ng = -Ng;
 				}
@@ -443,9 +454,9 @@ namespace osc {
 
 				if (testrit <= 1) {
 					vec3f refractionDir = nit * rayDir + (nit * cosi - sqrtf(1 - testrit)) * Ng;
-					
+
 					uint32_t u0, u1;
-					packPointer(&prd, u0, u1);
+					packPointer(&refraction, u0, u1);
 
 					optixTrace(optixLaunchParams.traversable,
 						surfPos,
@@ -460,7 +471,7 @@ namespace osc {
 						RADIANCE_RAY_TYPE,            // missSBTIndex 
 						u0, u1
 					);
-					pixelColor = sbtData.transmission * prd.pixelColor;
+					pixelColor += sbtData.transmission * refraction.pixelColor;
 				}
 			}
 		}
@@ -500,7 +511,7 @@ namespace osc {
 	{
 		PRD& prd = *getPRD<PRD>();
 		// set to constant white as background color
-		prd.pixelColor = vec3f(1,1,0);
+		prd.pixelColor = vec3f(1, 1, 0);
 	}
 
 	extern "C" __global__ void __miss__shadow()
@@ -528,10 +539,10 @@ namespace osc {
 		const int ix = optixGetLaunchIndex().x;
 
 		Random ran;
-		ran.init(ix,ix*optixLaunchParams.frame.size.x);
+		ran.init(ix, ix * optixLaunchParams.frame.size.x);
 
 		printf("\n random 1: %f 2: %f 3: %f ix: %d hax: %f hay: %f\n", ran(), ran(), ran(), ix, optixLaunchParams.halton[ix].x, optixLaunchParams.halton[ix].y);
-		
+
 		PhotonPRD prd;
 		prd.random.init(ix, ix * optixLaunchParams.frame.size.x);
 		prd.depth = 0;
@@ -545,7 +556,7 @@ namespace osc {
 		vec3f U, V, W, direction;
 		create_onb(optixLaunchParams.light.normal, U, V, W);
 		sampleUnitHemisphere(optixLaunchParams.halton[ix], U, V, W, direction);
-				
+
 		optixTrace(
 			optixLaunchParams.traversable,
 			optixLaunchParams.light.origin,
@@ -559,7 +570,7 @@ namespace osc {
 			RAY_TYPE_COUNT,					// SBT stride
 			PHOTON_RAY_TYPE,				// missSBTIndex 
 			//prd.depth						// reinterpret_cast<unsigned int&>(prd.depth)
-			u0,u1
+			u0, u1
 		);
 
 		printf("profundidad %i\n", prd.depth);
@@ -588,13 +599,15 @@ namespace osc {
 
 		int numPixelSamples = NUM_PIXEL_SAMPLES;
 
+
 		vec3f pixelColor = 0.f;
 		for (int sampleID = 0; sampleID < numPixelSamples; sampleID++) {
+			prd.pixelColor = vec3f(0.f);
 			// normalized screen plane position, in [0,1]^2
 			const vec2f screen(vec2f(ix + prd.random(), iy + prd.random()) / vec2f(optixLaunchParams.frame.size));
 
 			// generate ray direction
-			vec3f rayDir = normalize(camera.direction 
+			vec3f rayDir = normalize(camera.direction
 				+ (screen.x - 0.5f) * camera.horizontal
 				+ (screen.y - 0.5f) * camera.vertical);
 
@@ -611,11 +624,26 @@ namespace osc {
 				RADIANCE_RAY_TYPE,            // missSBTIndex 
 				u0, u1);
 			pixelColor += prd.pixelColor;
+			//if (ix == 600 && iy == 400)
+			//{
+			//	printf("\SCREEN: %i %i", optixLaunchParams.frame.size.x, optixLaunchParams.frame.size.y);
+			//	printf("\nROJO: %f   SAMPLE: %i", prd.pixelColor.x, sampleID);
+			//	printf("\nVERDE: %f   SAMPLE: %i", prd.pixelColor.y, sampleID);
+			//	printf("\nAZUL: %f   SAMPLE: %i \n", prd.pixelColor.z, sampleID);
+			//}
 		}
-		
+
 		const int r = int(255.99f * min(pixelColor.x / numPixelSamples, 1.f));
 		const int g = int(255.99f * min(pixelColor.y / numPixelSamples, 1.f));
 		const int b = int(255.99f * min(pixelColor.z / numPixelSamples, 1.f));
+
+		//if (ix == 600 && iy == 400)
+		//{
+		//	printf("\nROJO FINAL: %f", pixelColor.x / numPixelSamples);
+		//	printf("\nVERDE FINAL: %f", pixelColor.y / numPixelSamples);
+		//	printf("\nAZUL FINAL: %f \n\n", pixelColor.z / numPixelSamples);
+		//}
+
 
 		// convert to 32-bit rgba value (we explicitly set alpha to 0xff
 		// to make stb_image_write happy ...
