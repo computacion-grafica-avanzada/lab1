@@ -102,7 +102,7 @@ namespace osc {
 
 		if (dot(ray_dir, Ng) > 0.f) Ng = -Ng;
 		Ng = normalize(Ng);
-		
+
 		printf("normal %f %f %f \n", Ng.x, Ng.y, Ng.z);
 
 		//without random
@@ -121,7 +121,7 @@ namespace osc {
 		prd.depth += 1;
 		if (coin <= Pd) {
 			//diffuse
-			
+
 			// avoid first diffuse hit
 			if (prd.depth > 1) {
 				PhotonPrint pp = { hit_point, ray_dir, prd.power };
@@ -137,7 +137,7 @@ namespace osc {
 				create_onb(Ng, U, V, W);
 
 				sampleUnitHemisphere(optixLaunchParams.halton[rand_index].y, U, V, W, direction);
-			
+
 				printf("direction %f %f %f \n", direction.x, direction.y, direction.z);
 
 				prd.power = (prd.power * sbtData.color) / Pd;
@@ -163,8 +163,8 @@ namespace osc {
 		else {
 			// absorption check if need to store diffuse photons
 		}
-	
-		
+
+
 		// ruleta rusa
 		// en el caso difuso si depth es 0 no se guarda marca
 		// chequear depth+1 menor a MAX
@@ -205,10 +205,10 @@ namespace osc {
 		const int ix = optixGetLaunchIndex().x;
 
 		Random ran;
-		ran.init(ix,ix*optixLaunchParams.frame.size.x);
+		ran.init(ix, ix * optixLaunchParams.frame.size.x);
 
 		printf("\n random 1: %f 2: %f 3: %f ix: %d hax: %f hay: %f\n", ran(), ran(), ran(), ix, optixLaunchParams.halton[ix].x, optixLaunchParams.halton[ix].y);
-		
+
 		PhotonPRD prd;
 		prd.random.init(ix, ix * optixLaunchParams.frame.size.x);
 		prd.depth = 0;
@@ -222,7 +222,7 @@ namespace osc {
 		vec3f U, V, W, direction;
 		create_onb(optixLaunchParams.light.normal, U, V, W);
 		sampleUnitHemisphere(optixLaunchParams.halton[ix], U, V, W, direction);
-				
+
 		optixTrace(
 			optixLaunchParams.traversable,
 			optixLaunchParams.light.origin,
@@ -236,7 +236,7 @@ namespace osc {
 			RAY_TYPE_COUNT,					// SBT stride
 			PHOTON_RAY_TYPE,				// missSBTIndex 
 			//prd.depth						// reinterpret_cast<unsigned int&>(prd.depth)
-			u0,u1
+			u0, u1
 		);
 
 		printf("profundidad %i\n", prd.depth);
