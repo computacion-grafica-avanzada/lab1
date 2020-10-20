@@ -17,7 +17,7 @@
 #pragma once
 
 #define NUM_LIGHT_SAMPLES 1
-#define NUM_PIXEL_SAMPLES 16
+#define NUM_PIXEL_SAMPLES 4
 
 #define NUM_PHOTON_SAMPLES 10000
 #define MAX_DEPTH 10

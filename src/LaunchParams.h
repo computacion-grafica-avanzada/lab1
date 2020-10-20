@@ -40,7 +40,12 @@ namespace osc {
   };
   
   struct PhotonPrint {
-      vec3f position, direction, power;
+      vec3f position;
+      vec3f direction;
+      vec3f power;
+      bool operator==(PhotonPrint const& other) {
+          return position == other.position && direction == other.direction && power == other.power;
+      }
   };
 
   struct LaunchParams
@@ -72,7 +77,11 @@ namespace osc {
 
     int* ji;
 
-    PhotonPrint* photons;
+    PhotonPrint* prePhotonMap;
+    PhotonPrint* photonMap;
+    int mapSize;
+
+    PhotonPrint* nearestPhotons;
     
     OptixTraversableHandle traversable;
   };

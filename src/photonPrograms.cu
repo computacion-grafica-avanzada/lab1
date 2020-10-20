@@ -43,7 +43,11 @@ namespace osc {
 		unsigned int depth;
 	};
 
-
+	//static __device__ void insert_if_near(PhotonPrint*& res, int max_p, PhotonPrint candidate) {
+	//	for (int i = 0; i < max_p; i++) {
+	//		if 
+	//	}
+	//}
 
 	//------------------------------------------------------------------------------
 	// closest hit and anyhit programs for radiance-type rays.
@@ -64,6 +68,7 @@ namespace osc {
 		const int   primID = optixGetPrimitiveIndex();
 		const vec3i index = sbtData.index[primID];
 		const int ix = optixGetLaunchIndex().x;
+
 
 		// todo modulus with max number of photons
 		int max_photons = sizeof(optixLaunchParams.halton) / sizeof(optixLaunchParams.halton[0]);
@@ -124,8 +129,11 @@ namespace osc {
 
 			// avoid first diffuse hit
 			if (prd.depth > 1) {
-				PhotonPrint pp = { hit_point, ray_dir, prd.power };
-				optixLaunchParams.photons[ix * MAX_DEPTH + prd.depth - 2] = pp;
+				PhotonPrint pp;
+				pp.position = hit_point;
+				pp.direction = ray_dir;
+				pp.power = prd.power;
+				optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 2] = pp;
 			}
 
 			if (prd.depth <= MAX_DEPTH) {

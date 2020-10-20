@@ -21,21 +21,9 @@
 #include "gdt/random/random.h"
 
 #include <cuda.h>
-
-#define CUDA_CALL(x) do { if((x)!=cudaSuccess) { \
-    printf("Error at %s:%d\n",__FILE__,__LINE__);\
-    return EXIT_FAILURE;}} while(0)
-#define CURAND_CALL(x) do { if((x)!=CURAND_STATUS_SUCCESS) { \
-    printf("Error at %s:%d\n",__FILE__,__LINE__);\
-    return EXIT_FAILURE;}} while(0)
+#include "Utils.h"
 
 using namespace osc;
-
-#define NUM_LIGHT_SAMPLES 1
-#define NUM_PIXEL_SAMPLES 4
-
-#define NUM_PHOTON_SAMPLES 10000
-#define MAX_DEPTH 10
 
 namespace osc {
 
@@ -61,89 +49,43 @@ namespace osc {
 		unsigned int depth;
 	};
 
+	// todo check disk and use n photons
+	static __device__ void nearest_photons(vec3f point, float max_r, int gridId) {
+		//float* distances = new float[optixLaunchParams.mapSize];
+		//cudaMallocManaged(&distances, optixLaunchParams.mapSize * sizeof(float));
+		int count = 0;
+		float sq_r = max_r * max_r;
+		//printf("max size %i\n", optixLaunchParams.mapSize);
+		for (int i = 0; i < optixLaunchParams.mapSize; i++) {
+			vec3f diff = optixLaunchParams.photonMap[i].position - point;
+			float sq_dist = dot(diff,diff);
+			//printf("distancia %f\n", dist);
+			//distances[i] = dist;
+			if (sq_dist <= sq_r) {
+				optixLaunchParams.nearestPhotons[gridId + count] = optixLaunchParams.photonMap[i];
+				count++;
+			}
+			if (count >= 100)
+				break;
+		}
+		//PhotonPrint* res = new PhotonPrint[count];
+		//(*qw) = new PhotonPrint[count];
+		////cudaMallocManaged(&qw, count * sizeof(PhotonPrint));
+		//int current = 0;
+		//for (int i = 0; i < optixLaunchParams.mapSize; i++) {
+		//	if (distances[i] <= max_r) {
+		//		(*qw)[current] = optixLaunchParams.photonMap[i];
+		//		current++;
+		//	}
+		//}
+		// for sobre todos los fotones para contar cuantos hay que cumplen
+		// crear array de ese largo
+		// for sobre todos y agregarlos
+		//printf("nearest %f %f %f count %i\n", point.x, point.y, point.z, count);
+		//delete [] distances;
+		//cudaFree(distances);
 
-
-	static __forceinline__ __device__
-		void* unpackPointer(uint32_t i0, uint32_t i1)
-	{
-		const uint64_t uptr = static_cast<uint64_t>(i0) << 32 | i1;
-		void* ptr = reinterpret_cast<void*>(uptr);
-		return ptr;
-	}
-
-	static __device__ __inline__ PhotonPRD getPhotonPRD()
-	{
-		PhotonPRD prd;
-		prd.depth = optixGetPayload_0();
-		return prd;
-	}
-
-	static __device__ __inline__ void setPhotonPRD(const PhotonPRD& prd)
-	{
-		optixSetPayload_0(prd.depth);
-	}
-
-	static __forceinline__ __device__
-		void  packPointer(void* ptr, uint32_t& i0, uint32_t& i1)
-	{
-		const uint64_t uptr = reinterpret_cast<uint64_t>(ptr);
-		i0 = uptr >> 32;
-		i1 = uptr & 0x00000000ffffffff;
-	}
-
-	template<typename T>
-	static __forceinline__ __device__ T* getPRD()
-	{
-		const uint32_t u0 = optixGetPayload_0();
-		const uint32_t u1 = optixGetPayload_1();
-		return reinterpret_cast<T*>(unpackPointer(u0, u1));
-	}
-
-	static __device__ __inline__ vec3f reflect(vec3f v, vec3f n) {
-		return ((dot(v, n) / dot(n, n)) * n) * 2 - v;
-	}
-
-	// sample hemisphere with cosine density
-	static __device__ __inline__ void sampleUnitHemisphere(
-		const vec2f& sample,
-		const vec3f& U,
-		const vec3f& V,
-		const vec3f& W,
-		vec3f& point)
-	{
-		// https://github.com/nvpro-samples/optix_advanced_samples/blob/21465ae85c47f3c57371c77fd2aa3bac4adabcd4/src/optixProgressivePhotonMap/ppm_ppass.cu
-		float phi = 2.0f * M_PI * sample.x;
-		float r = sqrt(sample.y);
-		float x = r * cos(phi);
-		float y = r * sin(phi);
-		float z = 1.0f - x * x - y * y;
-		z = z > 0.0f ? sqrt(z) : 0.0f;
-
-		point = x * U + y * V + z * W;
-	}
-
-	// Create ONB from normal.  Resulting W is parallel to normal
-	static __device__ __inline__ void create_onb(const vec3f& n, vec3f& U, vec3f& V, vec3f& W)
-	{
-		// https://github.com/nvpro-samples/optix_advanced_samples/blob/e4b6e03f5ad1239403d7990291604cd3eb12d814/src/device_include/helpers.h
-		W = normalize(n);
-		U = cross(W, vec3f(0.0f, 1.0f, 0.0f));
-
-		if (fabs(U.x) < 0.001f && fabs(U.y) < 0.001f && fabs(U.z) < 0.001f)
-			U = cross(W, vec3f(1.0f, 0.0f, 0.0f));
-
-		U = normalize(U);
-		V = cross(W, U);
-	}
-
-	static __device__ __inline__ float max(const vec3f& vec) {
-		if ((vec.x > vec.y) && (vec.x > vec.z))
-			return vec.x;
-
-		if (vec.y > vec.z)
-			return vec.y;
-
-		return vec.z;
+		//return res;
 	}
 
 	//------------------------------------------------------------------------------
@@ -161,124 +103,6 @@ namespace osc {
 		/* not going to be used ... */
 	}
 
-	extern "C" __global__ void __closesthit__photon()
-	{
-		// ------------------------------------------------------------------
-		// gather some basic hit information
-		// ------------------------------------------------------------------
-		const TriangleMeshSBTData& sbtData = *(const TriangleMeshSBTData*)optixGetSbtDataPointer();
-		const int   primID = optixGetPrimitiveIndex();
-		const vec3i index = sbtData.index[primID];
-		const int ix = optixGetLaunchIndex().x;
-
-		// todo modulus with max number of photons
-		int max_photons = sizeof(optixLaunchParams.halton) / sizeof(optixLaunchParams.halton[0]);
-
-		PhotonPRD& prd = *(PhotonPRD*)getPRD<PhotonPRD>();
-
-		const vec3f ray_orig = optixGetWorldRayOrigin();
-		const vec3f ray_dir = optixGetWorldRayDirection();
-		const float ray_t = optixGetRayTmax();
-
-		vec3f hit_point = ray_orig + ray_t * ray_dir;
-
-		printf("spec %f %f %f tran %f %f %f ior %f phong %f \n",
-			sbtData.specular.x,
-			sbtData.specular.y,
-			sbtData.specular.z,
-			sbtData.transmission.x,
-			sbtData.transmission.y,
-			sbtData.transmission.z,
-			sbtData.ior,
-			sbtData.phong
-		);
-
-		//for (int i = 0; i < hola.size(); i++) {
-		//	printf("thrust %i\n", hola[i]);
-		//}
-
-		// ------------------------------------------------------------------
-		// compute normal, using either shading normal (if avail), or
-		// geometry normal (fallback)
-		// ------------------------------------------------------------------
-		const vec3f& A = sbtData.vertex[index.x];
-		const vec3f& B = sbtData.vertex[index.y];
-		const vec3f& C = sbtData.vertex[index.z];
-		vec3f Ng = cross(B - A, C - A);
-
-		if (dot(ray_dir, Ng) > 0.f) Ng = -Ng;
-		Ng = normalize(Ng);
-
-		printf("normal %f %f %f \n", Ng.x, Ng.y, Ng.z);
-
-		//without random
-		//PhotonPRD prd = getPhotonPRD();
-		//prd.depth = 10;
-		//setPhotonPRD(prd);
-		printf("hit %i \n", prd.depth);
-
-		int rand_index = (ix * prd.depth) % max_photons;
-		float coin = optixLaunchParams.halton[rand_index].x;
-
-		// diffuse component is color for now
-		float Pd = max(sbtData.color * prd.power) / max(prd.power);
-		printf("color %f %f %f maximo %f prob difuso %f mult %f %f %f\n", sbtData.color.x, sbtData.color.y, sbtData.color.z, max(sbtData.color), Pd, (sbtData.color * prd.power).x, (sbtData.color * prd.power).y, (sbtData.color * prd.power).z);
-
-		prd.depth += 1;
-		if (coin <= Pd) {
-			//diffuse
-
-			// avoid first diffuse hit
-			if (prd.depth > 1) {
-				PhotonPrint pp = { hit_point, ray_dir, prd.power };
-				optixLaunchParams.photons[ix * MAX_DEPTH + prd.depth - 2] = pp;
-			}
-
-			if (prd.depth <= MAX_DEPTH) {
-
-				uint32_t u0, u1;
-				packPointer(&prd, u0, u1);
-
-				// obtain random direction
-				vec3f U, V, W, direction;
-				create_onb(Ng, U, V, W);
-
-				sampleUnitHemisphere(optixLaunchParams.halton[rand_index].y, U, V, W, direction);
-
-				printf("direction %f %f %f \n", direction.x, direction.y, direction.z);
-
-				prd.power = (prd.power * sbtData.color) / Pd;
-
-				optixTrace(
-					optixLaunchParams.traversable,
-					hit_point,
-					direction,
-					0.f,							// tmin
-					1e20f,							// tmax
-					0.0f,							// rayTime
-					OptixVisibilityMask(255),
-					OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
-					PHOTON_RAY_TYPE,				// SBT offset
-					RAY_TYPE_COUNT,					// SBT stride
-					PHOTON_RAY_TYPE,				// missSBTIndex 
-					//prd.depth						// reinterpret_cast<unsigned int&>(prd.depth)
-					u0, u1
-				);
-			}
-		}
-		// falta if de speculares
-		else {
-			// absorption check if need to store diffuse photons
-		}
-
-
-		// ruleta rusa
-		// en el caso difuso si depth es 0 no se guarda marca
-		// chequear depth+1 menor a MAX
-		// tirar rayos acorde a reflexion difusa, specular, transmision o nada si se absorbe
-
-	}
-
 	extern "C" __global__ void __closesthit__radiance()
 	{
 		// direct
@@ -293,6 +117,8 @@ namespace osc {
 
 		const TriangleMeshSBTData& sbtData = *(const TriangleMeshSBTData*)optixGetSbtDataPointer();
 		PRD& prd = *getPRD<PRD>();
+
+
 
 		// ------------------------------------------------------------------
 		// gather some basic hit information
@@ -339,6 +165,18 @@ namespace osc {
 
 		vec3f hit_point = ray_orig + ray_t * ray_dir;
 		//printf("hit %f %f %f surf %f %f %f \n", hit_point.x, hit_point.y, hit_point.z, surfPos.x, surfPos.y, surfPos.z);
+		//float* we = new float[3];
+		//delete[] we;
+		//float we[3];
+		//we[0] = 0.4f;
+		//we[1] = 2.f;
+		//we[2] = 0.31f;
+		//printf("%f %f %f", we[0], we[1], we[2]);
+		const int ix = optixGetLaunchIndex().x;
+		const int iy = optixGetLaunchIndex().y;
+		int gridId = ix * 800 * 100 + iy * 100;
+		nearest_photons(hit_point, 0.5f, gridId);
+		//printf("wer %f %f %f\n", qw[0].position.x, qw[0].position.y, qw[0].position.z);
 
 		//for each light todo
 		const int numLightSamples = NUM_LIGHT_SAMPLES;
@@ -437,8 +275,9 @@ namespace osc {
 				refraction.currentIor = prd.currentIor;
 
 				// ray comes from outside surface
-				if (cosi < 0) {
-					nit = prd.currentIor / sbtData.ior;
+				if (cosi > 0) {
+					// we assume that when it leaves the surface, it goes into the air
+					nit = sbtData.ior;
 					cosi = -cosi;
 					refraction.currentIor = sbtData.ior;
 					//printf("holas");
@@ -446,8 +285,7 @@ namespace osc {
 				}
 				// ray comes from inside surface
 				else {
-					// we assume that when it leaves the surface, it goes into the air
-					nit = sbtData.ior;
+					nit = prd.currentIor / sbtData.ior;
 				}
 
 				float testrit = nit * nit * (1 - cosi * cosi);
@@ -495,10 +333,6 @@ namespace osc {
 		//	printf("%f %f %f\n",prd.x, prd.y, prd.z);
 	}
 
-	extern "C" __global__ void __anyhit__photon()
-	{ /*! not going to be used */
-	}
-
 	//------------------------------------------------------------------------------
 	// miss program that gets called for any ray that did not have a
 	// valid intersection
@@ -519,61 +353,6 @@ namespace osc {
 		// we didn't hit anything, so the light is visible
 		vec3f& prd = *(vec3f*)getPRD<vec3f>();
 		prd = vec3f(1.f);
-	}
-
-	extern "C" __global__ void __miss__photon()
-	{
-		PhotonPRD& prd = *(PhotonPRD*)getPRD<PhotonPRD>();
-		//prd.depth = prd.random() * 10;
-
-		//without random
-		//PhotonPRD prd = getPhotonPRD();
-		//prd.depth = 100;
-		//setPhotonPRD(prd);
-		printf("miss %i \n", prd.depth);
-	}
-
-	extern "C" __global__ void __raygen__renderPhoton()
-	{
-		// compute a test pattern based on pixel ID
-		const int ix = optixGetLaunchIndex().x;
-
-		Random ran;
-		ran.init(ix, ix * optixLaunchParams.frame.size.x);
-
-		printf("\n random 1: %f 2: %f 3: %f ix: %d hax: %f hay: %f\n", ran(), ran(), ran(), ix, optixLaunchParams.halton[ix].x, optixLaunchParams.halton[ix].y);
-
-		PhotonPRD prd;
-		prd.random.init(ix, ix * optixLaunchParams.frame.size.x);
-		prd.depth = 0;
-		prd.power = optixLaunchParams.light.photonPower;
-		printf("power photon %f %f %f \n", prd.power.x, prd.power.y, prd.power.z);
-
-		uint32_t u0, u1;
-		packPointer(&prd, u0, u1);
-
-		// obtain random direction
-		vec3f U, V, W, direction;
-		create_onb(optixLaunchParams.light.normal, U, V, W);
-		sampleUnitHemisphere(optixLaunchParams.halton[ix], U, V, W, direction);
-
-		optixTrace(
-			optixLaunchParams.traversable,
-			optixLaunchParams.light.origin,
-			direction,
-			0.f,							// tmin
-			1e20f,							// tmax
-			0.0f,							// rayTime
-			OptixVisibilityMask(255),
-			OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
-			PHOTON_RAY_TYPE,				// SBT offset
-			RAY_TYPE_COUNT,					// SBT stride
-			PHOTON_RAY_TYPE,				// missSBTIndex 
-			//prd.depth						// reinterpret_cast<unsigned int&>(prd.depth)
-			u0, u1
-		);
-
-		printf("profundidad %i\n", prd.depth);
 	}
 
 	//------------------------------------------------------------------------------
@@ -597,7 +376,7 @@ namespace osc {
 		uint32_t u0, u1;
 		packPointer(&prd, u0, u1);
 
-		int numPixelSamples = NUM_PIXEL_SAMPLES;
+		int numPixelSamples = 4; //NUM_PIXEL_SAMPLES;
 
 
 		vec3f pixelColor = 0.f;
@@ -605,6 +384,7 @@ namespace osc {
 			prd.pixelColor = vec3f(0.f);
 			// normalized screen plane position, in [0,1]^2
 			const vec2f screen(vec2f(ix + prd.random(), iy + prd.random()) / vec2f(optixLaunchParams.frame.size));
+			//const vec2f screen(vec2f(ix, iy));
 
 			// generate ray direction
 			vec3f rayDir = normalize(camera.direction

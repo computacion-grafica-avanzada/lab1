@@ -21,7 +21,7 @@
 #include "halton.h"
 #include "PhotonMap.h"
 
-const int MAX_NUM_PHOTONS = 30;
+const int MAX_NUM_PHOTONS = 10000;
 
 /*! \namespace osc - Optix Siggraph Course */
 namespace osc {
@@ -54,6 +54,10 @@ namespace osc {
 		TriangleMeshSBTData data;
 	};
 
+	bool isEmpty(PhotonPrint ph) {
+		return ph.position == vec3f(0) && ph.direction == vec3f(0) && ph.power == vec3f(0);
+	}
+
 
 	/*! constructor - performs all setup, including initializing
 	  optix, creates module, pipeline, programs, SBT, etc. */
@@ -63,37 +67,22 @@ namespace osc {
 		initOptix();
 
 		// resize our cuda frame buffer
-		photons.resize(MAX_NUM_PHOTONS * 10 * sizeof(PhotonPrint));
-		launchParams.photons = (PhotonPrint*)photons.d_pointer();
+		prePhotonMap.resize(MAX_NUM_PHOTONS * 10 * sizeof(PhotonPrint));
+		launchParams.prePhotonMap = (PhotonPrint*)prePhotonMap.d_pointer();
 
 		std::vector<vec2f> haltons;
 		for (int i = 0; i < MAX_NUM_PHOTONS; i++) {
 			double* numeros = halton(i, 2);
-			haltons.push_back(vec2f((float)numeros[0],(float)numeros[1]));
-			std::cout << numeros[0] << " " << numeros[1] << std::endl;
-			//std::cout << haltons[i][0] << " " << haltons[i][1] << std::endl;
+			haltons.push_back(vec2f((float) numeros[0], (float) numeros[1]));
 		}
 		haltonNumbers.alloc_and_upload(haltons);
-		// update the launch parameters that we'll pass to the optix
-		// launch:
-		//launchParams.halton = new double*[10000];
 		launchParams.halton = (vec2f*)haltonNumbers.d_pointer();
-		//for (int i = 0; i < 10000; i++) {
-		//	std::cout << launchParams.halton[i][0] << " " << std::endl;
-		//}
-
-		std::vector<int> we = { 1,2,3,4 };
-		numeros.alloc_and_upload(we);
-		launchParams.ji = (int*)numeros.d_pointer();
 
 		launchParams.light.origin = light.origin;
 		launchParams.light.normal = light.normal;
 		launchParams.light.photonPower = light.power / light.numberPhotons;
 
 		std::cout << launchParams.light.photonPower << std::endl;
-
-		launchParams.funca.prueba = 1234;
-		launchParams.solo = 20000;
 		
 		std::cout << "#osc: creating optix context ..." << std::endl;
 		createContext();
@@ -143,23 +132,29 @@ namespace osc {
 				1
 			));
 			photonMapDone = true;
+			//CUDA_SYNC_CHECK();
+			haltonNumbers.free();
 
 			// obtain photon traces
 			std::vector<PhotonPrint> photonsVec(MAX_NUM_PHOTONS*10);
 			downloadPhotons(photonsVec.data());
 
-			std::vector<Photon> photonMapData;
-			for (int i = 0; i < photonsVec.size(); i++) {
-				if (
-					(photonsVec[i].position != vec3f(0)) && 
-					(photonsVec[i].direction != vec3f(0)) &&
-					(photonsVec[i].power != vec3f(0))
-				) {
-					Photon ph(photonsVec[i].position, photonsVec[i].direction, photonsVec[i].power);
-					photonMapData.push_back(ph);
-				}
-			}
-			//PhotonMap photonMap = PhotonMap(photonMapData);
+			// filter empty slots
+			std::vector<PhotonPrint> pm;
+			PhotonPrint nu = { vec3f(0),vec3f(0),vec3f(0) };
+			remove_copy(photonsVec.begin(), photonsVec.end(), std::back_inserter(pm), nu);
+			photonsVec.clear();
+			prePhotonMap.free();
+
+			photonMap.alloc_and_upload(pm);
+			launchParams.photonMap = (PhotonPrint*)photonMap.d_pointer();
+			launchParams.mapSize = pm.size();
+
+			// 100 max neighbors
+			// calculate index x*800*100 + y*100 + z
+			std::vector<PhotonPrint> np(1200 * 800 * 100);
+			nearestPhotons.alloc_and_upload(np);
+			launchParams.nearestPhotons = (PhotonPrint*)nearestPhotons.d_pointer();
 		}
 	}
 
@@ -428,7 +423,7 @@ namespace osc {
 		pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 		pipelineCompileOptions.pipelineLaunchParamsVariableName = "optixLaunchParams";
 
-		pipelineLinkOptions.maxTraceDepth = 2;
+		pipelineLinkOptions.maxTraceDepth = 10;
 
 		const std::string ptxCode = embedded_ptx_code;
 		const std::string ptxCodePhoton = photon_ptx_code;
@@ -805,29 +800,6 @@ namespace osc {
 	/*! render one frame */
 	void SampleRenderer::render()
 	{
-		if (!photonMapDone) {
-			launchParamsBuffer2.upload(&launchParams, 1);
-
-			OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
-				pipeline, stream,
-				/*! parameters and SBT */
-				launchParamsBuffer2.d_pointer(),
-				launchParamsBuffer2.sizeInBytes,
-				&sbt2,
-				/*! dimensions of the launch: */
-				MAX_NUM_PHOTONS,
-				1,
-				1
-			));
-			photonMapDone = true;
-			//CUDA_SYNC_CHECK();
-			//std::vector<PhotonPrint> photonsVec;
-			//downloadPhotons(photonsVec.data());
-			//std::cout << photonsVec[0].position.x << std::endl;
-		}
-
-
-
 		// sanity check: make sure we launch only after first resize is
 		// already done:
 		if (launchParams.frame.size.x == 0) return;
@@ -897,7 +869,7 @@ namespace osc {
 
 	void SampleRenderer::downloadPhotons(PhotonPrint* h_pixels)
 	{
-		photons.download(h_pixels, MAX_NUM_PHOTONS*10);
+		prePhotonMap.download(h_pixels, MAX_NUM_PHOTONS*10);
 	}
 
 } // ::osc
