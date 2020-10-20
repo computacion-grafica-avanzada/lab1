@@ -176,9 +176,10 @@ namespace osc {
 
 		bool photonMapDone = false;
 
-		CUDABuffer numeros;
+		CUDABuffer prePhotonMap;
+		CUDABuffer photonMap;
 
-		CUDABuffer photons;
+		CUDABuffer nearestPhotons;
 	};
 
 } // ::osc
