@@ -21,7 +21,8 @@
 #include "halton.h"
 #include "PhotonMap.h"
 
-const int MAX_NUM_PHOTONS = 10000;
+const int MAX_NUM_PHOTONS = 100000;
+const int MAX_DEPTH = 10;
 
 /*! \namespace osc - Optix Siggraph Course */
 namespace osc {
@@ -67,9 +68,10 @@ namespace osc {
 		initOptix();
 
 		// resize our cuda frame buffer
-		prePhotonMap.resize(MAX_NUM_PHOTONS * 10 * sizeof(PhotonPrint));
+		prePhotonMap.resize(MAX_NUM_PHOTONS * MAX_DEPTH * sizeof(PhotonPrint));
 		launchParams.prePhotonMap = (PhotonPrint*)prePhotonMap.d_pointer();
 
+		std::cout << "#osc: creating halton numbers ..." << std::endl;
 		std::vector<vec2f> haltons;
 		for (int i = 0; i < MAX_NUM_PHOTONS; i++) {
 			double* numeros = halton(i, 2);
@@ -78,6 +80,7 @@ namespace osc {
 		haltonNumbers.alloc_and_upload(haltons);
 		launchParams.halton = (vec2f*)haltonNumbers.d_pointer();
 
+		std::cout << "#osc: creating light ..." << std::endl;
 		launchParams.light.origin = light.origin;
 		launchParams.light.normal = light.normal;
 		launchParams.light.photonPower = light.power / light.numberPhotons;
@@ -136,12 +139,13 @@ namespace osc {
 			haltonNumbers.free();
 
 			// obtain photon traces
-			std::vector<PhotonPrint> photonsVec(MAX_NUM_PHOTONS*10);
+			std::vector<PhotonPrint> photonsVec(MAX_NUM_PHOTONS*MAX_DEPTH);
 			downloadPhotons(photonsVec.data());
 
 			// filter empty slots
 			std::vector<PhotonPrint> pm;
 			PhotonPrint nu = { vec3f(0),vec3f(0),vec3f(0) };
+
 			remove_copy(photonsVec.begin(), photonsVec.end(), std::back_inserter(pm), nu);
 			photonsVec.clear();
 			prePhotonMap.free();
@@ -152,8 +156,11 @@ namespace osc {
 
 			// 100 max neighbors
 			// calculate index x*800*100 + y*100 + z
-			std::vector<PhotonPrint> np(1200 * 800 * 100);
+			/*std::vector<PhotonPrint> np(1200 * 800 * 100);
 			nearestPhotons.alloc_and_upload(np);
+			launchParams.nearestPhotons = (PhotonPrint*)nearestPhotons.d_pointer();*/
+			cout << "size print " << sizeof(PhotonPrint) << endl;
+			nearestPhotons.resize(1200 * 800 * MAX_DEPTH * sizeof(PhotonPrint));
 			launchParams.nearestPhotons = (PhotonPrint*)nearestPhotons.d_pointer();
 		}
 	}
@@ -411,9 +418,7 @@ namespace osc {
 	  single .cu file, using a single embedded ptx string */
 	void SampleRenderer::createModule()
 	{
-		moduleCompileOptions.maxRegisterCount = 50;
-		moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-		moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+		moduleCompileOptions = {};
 
 		pipelineCompileOptions = {};
 		pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;

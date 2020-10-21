@@ -46,6 +46,9 @@ namespace osc {
       bool operator==(PhotonPrint const& other) {
           return position == other.position && direction == other.direction && power == other.power;
       }
+      bool operator!=(PhotonPrint const& other) {
+          return position != other.position || direction != other.direction || power != other.power;
+      }
   };
 
   struct LaunchParams
