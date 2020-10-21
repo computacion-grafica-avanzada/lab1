@@ -81,16 +81,16 @@ namespace osc {
 
 		vec3f hit_point = ray_orig + ray_t * ray_dir;
 
-		printf("spec %f %f %f tran %f %f %f ior %f phong %f \n",
-			sbtData.specular.x,
-			sbtData.specular.y,
-			sbtData.specular.z,
-			sbtData.transmission.x,
-			sbtData.transmission.y,
-			sbtData.transmission.z,
-			sbtData.ior,
-			sbtData.phong
-		);
+		//printf("spec %f %f %f tran %f %f %f ior %f phong %f \n",
+		//	sbtData.specular.x,
+		//	sbtData.specular.y,
+		//	sbtData.specular.z,
+		//	sbtData.transmission.x,
+		//	sbtData.transmission.y,
+		//	sbtData.transmission.z,
+		//	sbtData.ior,
+		//	sbtData.phong
+		//);
 
 		//for (int i = 0; i < hola.size(); i++) {
 		//	printf("thrust %i\n", hola[i]);
@@ -108,20 +108,20 @@ namespace osc {
 		if (dot(ray_dir, Ng) > 0.f) Ng = -Ng;
 		Ng = normalize(Ng);
 
-		printf("normal %f %f %f \n", Ng.x, Ng.y, Ng.z);
+		//printf("normal %f %f %f \n", Ng.x, Ng.y, Ng.z);
 
 		//without random
 		//PhotonPRD prd = getPhotonPRD();
 		//prd.depth = 10;
 		//setPhotonPRD(prd);
-		printf("hit %i \n", prd.depth);
+		//printf("hit %i \n", prd.depth);
 
 		int rand_index = (ix * prd.depth) % max_photons;
 		float coin = optixLaunchParams.halton[rand_index].x;
 
 		// diffuse component is color for now
 		float Pd = max(sbtData.color * prd.power) / max(prd.power);
-		printf("color %f %f %f maximo %f prob difuso %f mult %f %f %f\n", sbtData.color.x, sbtData.color.y, sbtData.color.z, max(sbtData.color), Pd, (sbtData.color * prd.power).x, (sbtData.color * prd.power).y, (sbtData.color * prd.power).z);
+		//printf("color %f %f %f maximo %f prob difuso %f mult %f %f %f\n", sbtData.color.x, sbtData.color.y, sbtData.color.z, max(sbtData.color), Pd, (sbtData.color * prd.power).x, (sbtData.color * prd.power).y, (sbtData.color * prd.power).z);
 
 		prd.depth += 1;
 		if (coin <= Pd) {
@@ -146,7 +146,7 @@ namespace osc {
 
 				sampleUnitHemisphere(optixLaunchParams.halton[rand_index].y, U, V, W, direction);
 
-				printf("direction %f %f %f \n", direction.x, direction.y, direction.z);
+				//printf("direction %f %f %f \n", direction.x, direction.y, direction.z);
 
 				prd.power = (prd.power * sbtData.color) / Pd;
 
@@ -201,7 +201,7 @@ namespace osc {
 		//PhotonPRD prd = getPhotonPRD();
 		//prd.depth = 100;
 		//setPhotonPRD(prd);
-		printf("miss %i \n", prd.depth);
+		//printf("miss %i \n", prd.depth);
 	}
 
 	//------------------------------------------------------------------------------
@@ -215,13 +215,13 @@ namespace osc {
 		Random ran;
 		ran.init(ix, ix * optixLaunchParams.frame.size.x);
 
-		printf("\n random 1: %f 2: %f 3: %f ix: %d hax: %f hay: %f\n", ran(), ran(), ran(), ix, optixLaunchParams.halton[ix].x, optixLaunchParams.halton[ix].y);
+		//printf("\n random 1: %f 2: %f 3: %f ix: %d hax: %f hay: %f\n", ran(), ran(), ran(), ix, optixLaunchParams.halton[ix].x, optixLaunchParams.halton[ix].y);
 
 		PhotonPRD prd;
 		prd.random.init(ix, ix * optixLaunchParams.frame.size.x);
 		prd.depth = 0;
 		prd.power = optixLaunchParams.light.photonPower;
-		printf("power photon %f %f %f \n", prd.power.x, prd.power.y, prd.power.z);
+		//printf("power photon %f %f %f \n", prd.power.x, prd.power.y, prd.power.z);
 
 		uint32_t u0, u1;
 		packPointer(&prd, u0, u1);
@@ -247,7 +247,7 @@ namespace osc {
 			u0, u1
 		);
 
-		printf("profundidad %i\n", prd.depth);
+		//printf("profundidad %i\n", prd.depth);
 	}
 
 } // ::osc
