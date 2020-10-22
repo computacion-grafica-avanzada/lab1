@@ -61,40 +61,15 @@ namespace osc {
 
 	extern "C" __global__ void __closesthit__photon()
 	{
+		PhotonPRD& prd = *(PhotonPRD*)getPRD<PhotonPRD>();
+		const TriangleMeshSBTData& sbtData = *(const TriangleMeshSBTData*)optixGetSbtDataPointer();
+		const int ix = optixGetLaunchIndex().x;
+
 		// ------------------------------------------------------------------
 		// gather some basic hit information
 		// ------------------------------------------------------------------
-		const TriangleMeshSBTData& sbtData = *(const TriangleMeshSBTData*)optixGetSbtDataPointer();
-		const int   primID = optixGetPrimitiveIndex();
+		const int  primID = optixGetPrimitiveIndex();
 		const vec3i index = sbtData.index[primID];
-		const int ix = optixGetLaunchIndex().x;
-
-
-		// todo modulus with max number of photons
-		int max_photons = sizeof(optixLaunchParams.halton) / sizeof(optixLaunchParams.halton[0]);
-
-		PhotonPRD& prd = *(PhotonPRD*)getPRD<PhotonPRD>();
-
-		const vec3f ray_orig = optixGetWorldRayOrigin();
-		const vec3f ray_dir = optixGetWorldRayDirection();
-		const float ray_t = optixGetRayTmax();
-
-		vec3f hit_point = ray_orig + ray_t * ray_dir;
-
-		//printf("spec %f %f %f tran %f %f %f ior %f phong %f \n",
-		//	sbtData.specular.x,
-		//	sbtData.specular.y,
-		//	sbtData.specular.z,
-		//	sbtData.transmission.x,
-		//	sbtData.transmission.y,
-		//	sbtData.transmission.z,
-		//	sbtData.ior,
-		//	sbtData.phong
-		//);
-
-		//for (int i = 0; i < hola.size(); i++) {
-		//	printf("thrust %i\n", hola[i]);
-		//}
 
 		// ------------------------------------------------------------------
 		// compute normal, using either shading normal (if avail), or
@@ -105,22 +80,28 @@ namespace osc {
 		const vec3f& C = sbtData.vertex[index.z];
 		vec3f Ng = cross(B - A, C - A);
 
-		if (dot(ray_dir, Ng) > 0.f) Ng = -Ng;
+		// ------------------------------------------------------------------
+		// compute ray intersection point
+		// ------------------------------------------------------------------
+		const vec3f rayOrig = optixGetWorldRayOrigin();
+		const vec3f rayDir = optixGetWorldRayDirection();
+		const float rayT = optixGetRayTmax();
+		vec3f hitPoint = rayOrig + rayDir * rayT;
+
+		// ------------------------------------------------------------------
+		// face-forward and normalize normals
+		// ------------------------------------------------------------------
+		if (dot(rayDir, Ng) > 0.f) Ng = -Ng;
 		Ng = normalize(Ng);
 
-		//printf("normal %f %f %f \n", Ng.x, Ng.y, Ng.z);
 
-		//without random
-		//PhotonPRD prd = getPhotonPRD();
-		//prd.depth = 10;
-		//setPhotonPRD(prd);
-		//printf("hit %i \n", prd.depth);
-
-		int rand_index = (ix * prd.depth) % max_photons;
+		int rand_index = (ix * prd.depth) % NUM_PHOTON_SAMPLES;
 		float coin = optixLaunchParams.halton[rand_index].x;
 
 		// diffuse component is color for now
 		float Pd = max(sbtData.color * prd.power) / max(prd.power);
+		float Ps = max(sbtData.specular * prd.power) / max(prd.power);
+		float Pt = max(sbtData.transmission * prd.power) / max(prd.power);
 		//printf("color %f %f %f maximo %f prob difuso %f mult %f %f %f\n", sbtData.color.x, sbtData.color.y, sbtData.color.z, max(sbtData.color), Pd, (sbtData.color * prd.power).x, (sbtData.color * prd.power).y, (sbtData.color * prd.power).z);
 
 		prd.depth += 1;
@@ -130,8 +111,8 @@ namespace osc {
 			// avoid first diffuse hit
 			if (prd.depth > 1) {
 				PhotonPrint pp;
-				pp.position = hit_point;
-				pp.direction = ray_dir;
+				pp.position = hitPoint;
+				pp.direction = rayDir;
 				pp.power = prd.power;
 				optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 2] = pp;
 			}
@@ -152,7 +133,7 @@ namespace osc {
 
 				optixTrace(
 					optixLaunchParams.traversable,
-					hit_point,
+					hitPoint,
 					direction,
 					0.f,							// tmin
 					1e20f,							// tmax
@@ -167,7 +148,62 @@ namespace osc {
 				);
 			}
 		}
-		// falta if de speculares
+		else if (coin <= Pd + Ps) {
+			// specular
+
+			if (prd.depth <= MAX_DEPTH) {
+				uint32_t u0, u1;
+				packPointer(&prd, u0, u1);
+
+				// obtain reflection direction
+				vec3f reflectDir = reflect(-rayDir, Ng); //rayo en la direccion de reflexion desde punto;
+
+				prd.power = (prd.power * sbtData.specular) / Ps;
+
+				optixTrace(
+					optixLaunchParams.traversable,
+					hitPoint,
+					reflectDir,
+					0.f,							// tmin
+					1e20f,							// tmax
+					0.0f,							// rayTime
+					OptixVisibilityMask(255),
+					OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
+					PHOTON_RAY_TYPE,				// SBT offset
+					RAY_TYPE_COUNT,					// SBT stride
+					PHOTON_RAY_TYPE,				// missSBTIndex 
+					u0, u1
+				);
+			}
+		}
+		else if (coin <= Pd + Ps + Pt) {
+			// transmission
+
+			//if (prd.depth <= MAX_DEPTH) {
+			//	uint32_t u0, u1;
+			//	packPointer(&prd, u0, u1);
+
+			//	// obtain reflection direction
+			//	vec3f reflectDir = reflect(-rayDir, Ng); //rayo en la direccion de reflexion desde punto;
+
+			//	prd.power = (prd.power * sbtData.specular) / Ps;
+
+			//	optixTrace(
+			//		optixLaunchParams.traversable,
+			//		hitPoint,
+			//		reflectDir,
+			//		0.f,							// tmin
+			//		1e20f,							// tmax
+			//		0.0f,							// rayTime
+			//		OptixVisibilityMask(255),
+			//		OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
+			//		PHOTON_RAY_TYPE,				// SBT offset
+			//		RAY_TYPE_COUNT,					// SBT stride
+			//		PHOTON_RAY_TYPE,				// missSBTIndex 
+			//		u0, u1
+			//	);
+			//}
+		}
 		else {
 			// absorption check if need to store diffuse photons
 		}
