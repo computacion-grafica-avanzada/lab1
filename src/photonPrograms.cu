@@ -61,7 +61,7 @@ namespace osc {
 
 	extern "C" __global__ void __closesthit__photon()
 	{
-		PhotonPRD& prd = *(PhotonPRD*)getPRD<PhotonPRD>();
+		PhotonPRD& prd = *getPRD<PhotonPRD>();
 		const TriangleMeshSBTData& sbtData = *(const TriangleMeshSBTData*)optixGetSbtDataPointer();
 		const int ix = optixGetLaunchIndex().x;
 
@@ -95,7 +95,8 @@ namespace osc {
 		Ng = normalize(Ng);
 
 
-		int rand_index = (ix * prd.depth) % NUM_PHOTON_SAMPLES;
+		int rand_index = prd.random() * NUM_PHOTON_SAMPLES;
+		//int rand_index = (ix * prd.depth + 1) % NUM_PHOTON_SAMPLES;
 		float coin = optixLaunchParams.halton[rand_index].x;
 
 		// diffuse component is color for now
@@ -109,13 +110,21 @@ namespace osc {
 			//diffuse
 
 			// avoid first diffuse hit
+			PhotonPrint pp;
 			if (prd.depth > 1) {
-				PhotonPrint pp;
 				pp.position = hitPoint;
 				pp.direction = rayDir;
 				pp.power = prd.power;
 				optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 2] = pp;
 			}
+
+			//if (prd.depth == 1) {
+			//	PhotonPrint pp;
+			//	pp.position = hitPoint;
+			//	pp.direction = rayDir;
+			//	pp.power = prd.power;
+			//	optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 1] = pp;
+			//}
 
 			if (prd.depth <= MAX_DEPTH) {
 				uint32_t u0, u1;
@@ -125,9 +134,8 @@ namespace osc {
 				vec3f U, V, W, direction;
 				create_onb(Ng, U, V, W);
 
-				sampleUnitHemisphere(optixLaunchParams.halton[rand_index].y, U, V, W, direction);
+				sampleUnitHemisphere(optixLaunchParams.halton[rand_index], U, V, W, direction);
 
-				//printf("direction %f %f %f \n", direction.x, direction.y, direction.z);
 
 				prd.power = (prd.power * sbtData.color) / Pd;
 
@@ -135,7 +143,7 @@ namespace osc {
 					optixLaunchParams.traversable,
 					hitPoint,
 					direction,
-					0.f,							// tmin
+					1.e-4f, // tmin
 					1e20f,							// tmax
 					0.0f,							// rayTime
 					OptixVisibilityMask(255),
@@ -164,7 +172,7 @@ namespace osc {
 					optixLaunchParams.traversable,
 					hitPoint,
 					reflectDir,
-					0.f,							// tmin
+					1.e-4f, // tmin
 					1e20f,							// tmax
 					0.0f,							// rayTime
 					OptixVisibilityMask(255),
@@ -206,6 +214,13 @@ namespace osc {
 		}
 		else {
 			// absorption check if need to store diffuse photons
+			if (prd.depth > 1) {
+				PhotonPrint pp;
+				pp.position = hitPoint;
+				pp.direction = rayDir;
+				pp.power = prd.power;
+				optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 2] = pp;
+			}
 		}
 
 
