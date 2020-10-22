@@ -21,9 +21,6 @@
 #include "halton.h"
 #include "PhotonMap.h"
 
-const int MAX_NUM_PHOTONS = 100000;
-const int MAX_DEPTH = 10;
-
 /*! \namespace osc - Optix Siggraph Course */
 namespace osc {
 
@@ -68,12 +65,12 @@ namespace osc {
 		initOptix();
 
 		// resize our cuda frame buffer
-		prePhotonMap.resize(MAX_NUM_PHOTONS * MAX_DEPTH * sizeof(PhotonPrint));
+		prePhotonMap.resize(NUM_PHOTON_SAMPLES * MAX_DEPTH * sizeof(PhotonPrint));
 		launchParams.prePhotonMap = (PhotonPrint*)prePhotonMap.d_pointer();
 
 		std::cout << "#osc: creating halton numbers ..." << std::endl;
 		std::vector<vec2f> haltons;
-		for (int i = 0; i < MAX_NUM_PHOTONS; i++) {
+		for (int i = 0; i < NUM_PHOTON_SAMPLES; i++) {
 			double* numeros = halton(i, 2);
 			haltons.push_back(vec2f((float) numeros[0], (float) numeros[1]));
 		}
@@ -130,7 +127,7 @@ namespace osc {
 				launchParamsBuffer2.sizeInBytes,
 				&sbt2,
 				/*! dimensions of the launch: */
-				MAX_NUM_PHOTONS,
+				NUM_PHOTON_SAMPLES,
 				1,
 				1
 			));
@@ -139,7 +136,7 @@ namespace osc {
 			haltonNumbers.free();
 
 			// obtain photon traces
-			std::vector<PhotonPrint> photonsVec(MAX_NUM_PHOTONS*MAX_DEPTH);
+			std::vector<PhotonPrint> photonsVec(NUM_PHOTON_SAMPLES*MAX_DEPTH);
 			downloadPhotons(photonsVec.data());
 
 			// filter empty slots
@@ -874,7 +871,7 @@ namespace osc {
 
 	void SampleRenderer::downloadPhotons(PhotonPrint* h_pixels)
 	{
-		prePhotonMap.download(h_pixels, MAX_NUM_PHOTONS*10);
+		prePhotonMap.download(h_pixels, NUM_PHOTON_SAMPLES*10);
 	}
 
 } // ::osc

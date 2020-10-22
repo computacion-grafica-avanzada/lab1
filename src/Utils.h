@@ -19,9 +19,6 @@
 #define NUM_LIGHT_SAMPLES 1
 #define NUM_PIXEL_SAMPLES 4
 
-#define NUM_PHOTON_SAMPLES 10000
-#define MAX_DEPTH 10
-
 #define CUDA_CALL(x) do { if((x)!=cudaSuccess) { \
     printf("Error at %s:%d\n",__FILE__,__LINE__);\
     return EXIT_FAILURE;}} while(0)
@@ -59,7 +56,7 @@ namespace osc {
 	static __device__ __inline__ 
 		vec3f reflect(vec3f v, vec3f n) 
 	{
-			return ((dot(v, n) / dot(n, n)) * n) * 2 - v;
+			return v - ((dot(v, n) / dot(n, n)) * n) * 2;
 	}
 
 	// sample hemisphere with cosine density
