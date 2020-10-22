@@ -20,7 +20,7 @@
 #include "optix7.h"
 #include "Photon.h"
 
-const int NUM_PHOTON_SAMPLES = 10000;
+const int NUM_PHOTON_SAMPLES = 100000;
 const int MAX_DEPTH = 10;
 
 namespace osc {

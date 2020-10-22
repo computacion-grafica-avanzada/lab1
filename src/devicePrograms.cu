@@ -161,12 +161,12 @@ namespace osc {
 		// compute multiple diffuse
 		// ------------------------------------------------------------------
 		if (sbtData.color != vec3f(0)) {
-			float radius = 0.1f;
+			float radius = 0.01f;
 			int gridId = ix * 800 * MAX_DEPTH + iy * MAX_DEPTH;
 			int nn = nearest_photons(hitPoint, radius, gridId);
 
-			vec3f reflectivity = sbtData.color + sbtData.specular + sbtData.transmission;
-			printf(" %f %f %f\n", reflectivity.x, reflectivity.y, reflectivity.z);
+			vec3f reflectivity = sbtData.color; // +sbtData.specular + sbtData.transmission;
+			//printf(" %f %f %f\n", reflectivity.x, reflectivity.y, reflectivity.z);
 			vec3f brdf = reflectivity / M_PI;
 			//printf("brdf %f %f %f", brdf.x, brdf.y, brdf.z);
 
@@ -175,9 +175,11 @@ namespace osc {
 				totalPower += optixLaunchParams.nearestPhotons[gridId + i].power;
 			}
 
+
 			float delta_a = M_PI * radius * radius;
-			pixelColor += (brdf / delta_a) * totalPower;
-			//pixelColor += totalPower;
+			//printf("%f brdf %f %f %f delta %f %f %f\n", delta_a, brdf.x, brdf.y, brdf.z, (brdf/delta_a).x, (brdf / delta_a).y, (brdf / delta_a).z);
+			//pixelColor += (brdf / delta_a) * totalPower;
+			pixelColor += totalPower;
 			//pixelColor += optixLaunchParams.nearestPhotons[gridId].power;
 		}
 
@@ -207,7 +209,7 @@ namespace osc {
 				optixTrace(optixLaunchParams.traversable,
 					hitPoint,
 					lightDir,
-					1e-3f,						// tmin
+					1.e-4f,						// tmin
 					lightDist * (1.f - 1e-3f),  // tmax
 					0.0f,						// rayTime
 					OptixVisibilityMask(255),
