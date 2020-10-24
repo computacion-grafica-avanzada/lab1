@@ -23,6 +23,9 @@
 #include <cuda.h>
 #include "Utils.h"
 
+#define ALPHA 0.918
+#define BETA 1.953
+
 using namespace osc;
 
 namespace osc {
@@ -40,7 +43,7 @@ namespace osc {
 		Random random;
 		vec3f  pixelColor;
 		int depth;
-		int currentIor;
+		float currentIor;
 	};
 
 	struct PhotonPRD {
@@ -50,27 +53,55 @@ namespace osc {
 	};
 
 	// todo check disk and use n photons
-	static __device__ int nearest_photons(vec3f point, float max_r, int gridId) {
+	static __device__ vec3f nearest_photons(vec3f point, float max_r) {
 		//float* distances = new float[optixLaunchParams.mapSize];
 		//cudaMallocManaged(&distances, optixLaunchParams.mapSize * sizeof(float));
 		int count = 0;
+		vec3f totalPower = 0;
 		float sq_r = max_r * max_r;
+
+		//float act_r = 0;
+		//for (int i = 0; i < optixLaunchParams.mapSize; i++) {
+		//	vec3f diff = optixLaunchParams.photonMap[i].position - point;
+		//	float sq_dist = dot(diff, diff);
+
+
+		//	//printf("distancia %f\n", dist);
+		//	//distances[i] = dist;
+		//	if (sq_dist <= sq_r) {
+		//		if (sq_dist > act_r) act_r = sq_dist;
+		//		//totalPower += optixLaunchParams.photonMap[i].power; // *w_pg;
+		//		//count++;
+		//		//printf("count %i sq_dist %f sq_r %f\n", count, sq_dist, sq_r);
+		//	}
+		//	// maximum of 10 neighbors
+		//	//if (count >= MAX_DEPTH)
+		//	//	break;
+		//}
+
+		float denominator = 1 - expf(-BETA);
+
 		//printf("max size %i\n", optixLaunchParams.mapSize);
 		for (int i = 0; i < optixLaunchParams.mapSize; i++) {
 			vec3f diff = optixLaunchParams.photonMap[i].position - point;
 			float sq_dist = dot(diff,diff);
+			
+			float numerator = 1 - expf(-BETA * (sq_dist / 2 * sq_r));
+			float w_pg = ALPHA * (1 - numerator/denominator);
+			
 			//printf("distancia %f\n", dist);
 			//distances[i] = dist;
 			if (sq_dist <= sq_r) {
-				optixLaunchParams.nearestPhotons[gridId + count] = optixLaunchParams.photonMap[i];
+				totalPower += optixLaunchParams.photonMap[i].power *w_pg;
 				count++;
 				//printf("count %i sq_dist %f sq_r %f\n", count, sq_dist, sq_r);
 			}
 			// maximum of 10 neighbors
-			if (count >= MAX_DEPTH)
-				break;
+			//if (count >= MAX_DEPTH)
+			//	break;
 		}
-		return count;
+		//printf("count %i power %f %f %f\n", count, totalPower.x, totalPower.y, totalPower.z);
+		return totalPower; // / count;
 		//PhotonPrint* res = new PhotonPrint[count];
 		//(*qw) = new PhotonPrint[count];
 		////cudaMallocManaged(&qw, count * sizeof(PhotonPrint));
@@ -160,28 +191,25 @@ namespace osc {
 		// ------------------------------------------------------------------
 		// compute multiple diffuse
 		// ------------------------------------------------------------------
-		if (sbtData.color != vec3f(0)) {
-			float radius = 0.01f;
-			int gridId = ix * 800 * MAX_DEPTH + iy * MAX_DEPTH;
-			int nn = nearest_photons(hitPoint, radius, gridId);
+		//if (sbtData.color != vec3f(0)) {
+		//	float radius = 0.25f;
+		//	vec3f totalPower = nearest_photons(hitPoint, radius);
 
-			vec3f reflectivity = sbtData.color; // +sbtData.specular + sbtData.transmission;
-			//printf(" %f %f %f\n", reflectivity.x, reflectivity.y, reflectivity.z);
-			vec3f brdf = reflectivity / M_PI;
-			//printf("brdf %f %f %f", brdf.x, brdf.y, brdf.z);
+		//	vec3f brdf = sbtData.color / M_PI;
+		//	//printf("brdf %f %f %f", brdf.x, brdf.y, brdf.z);
 
-			vec3f totalPower = 0;
-			for (int i = 0; i < nn; i++) {
-				totalPower += optixLaunchParams.nearestPhotons[gridId + i].power;
-			}
+		//	//vec3f totalPower = 0;
+		//	//for (int i = 0; i < nn; i++) {
+		//	//	totalPower += optixLaunchParams.nearestPhotons[gridId + i].power;
+		//	//}
 
 
-			float delta_a = M_PI * radius * radius;
-			//printf("%f brdf %f %f %f delta %f %f %f\n", delta_a, brdf.x, brdf.y, brdf.z, (brdf/delta_a).x, (brdf / delta_a).y, (brdf / delta_a).z);
-			//pixelColor += (brdf / delta_a) * totalPower;
-			pixelColor += totalPower;
-			//pixelColor += optixLaunchParams.nearestPhotons[gridId].power;
-		}
+		//	float delta_a = M_PI * radius * radius;
+		//	//printf("%f brdf %f %f %f delta %f %f %f\n", delta_a, brdf.x, brdf.y, brdf.z, (brdf/delta_a).x, (brdf / delta_a).y, (brdf / delta_a).z);
+		//	//pixelColor += (brdf / delta_a) * totalPower;
+		//	pixelColor += totalPower * brdf;
+		//	//pixelColor += optixLaunchParams.nearestPhotons[gridId].power;
+		//}
 
 		// ------------------------------------------------------------------
 		// compute shadow
@@ -228,8 +256,8 @@ namespace osc {
 				vec3f reflectDir = reflect(-lightDir, Ng);
 				float RdotV = fmaxf(0.f, dot(reflectDir, -rayDir));
 
-				//pixelColor += base * sbtData.color * (NdotL / NUM_LIGHT_SAMPLES);
-				//pixelColor += base * sbtData.specular * pow(RdotV, sbtData.phong) / NUM_LIGHT_SAMPLES;
+				pixelColor += base * sbtData.color * (NdotL / NUM_LIGHT_SAMPLES);
+				pixelColor += base * sbtData.specular * pow(RdotV, sbtData.phong) / NUM_LIGHT_SAMPLES;
 			}
 		}
 
@@ -237,7 +265,7 @@ namespace osc {
 		if (prd.depth < MAX_DEPTH) {
 			prd.depth += 1;
 
-			// reflection component
+			//// reflection component
 			if (sbtData.specular != vec3f(0)) {
 				vec3f reflectDir = reflect(rayDir, Ng); //rayo en la direccion de reflexion desde punto;
 
@@ -262,7 +290,7 @@ namespace osc {
 					RADIANCE_RAY_TYPE,            // missSBTIndex 
 					u0, u1
 				);
-				//pixelColor += sbtData.specular * reflection.pixelColor;
+				pixelColor += sbtData.specular * reflection.pixelColor;
 			}
 
 			// refraction component
@@ -274,9 +302,9 @@ namespace osc {
 				refraction.currentIor = prd.currentIor;
 
 				// ray comes from outside surface
-				if (cosi > 0) {
+				if (cosi < 0) {
 					// we assume that when it leaves the surface, it goes into the air
-					nit = sbtData.ior;
+					nit = prd.currentIor / sbtData.ior;
 					cosi = -cosi;
 					refraction.currentIor = sbtData.ior;
 					//printf("holas");
@@ -284,7 +312,8 @@ namespace osc {
 				}
 				// ray comes from inside surface
 				else {
-					nit = prd.currentIor / sbtData.ior;
+					nit = sbtData.ior;
+					refraction.currentIor = 1;
 				}
 
 				float testrit = nit * nit * (1 - cosi * cosi);
@@ -308,7 +337,7 @@ namespace osc {
 						RADIANCE_RAY_TYPE,            // missSBTIndex 
 						u0, u1
 					);
-					//pixelColor += sbtData.transmission * refraction.pixelColor;
+					pixelColor += sbtData.transmission * refraction.pixelColor;
 				}
 			}
 		}
@@ -342,7 +371,7 @@ namespace osc {
 	{
 		PRD& prd = *getPRD<PRD>();
 		// set to constant white as background color
-		prd.pixelColor = vec3f(0);
+		prd.pixelColor = vec3f(0.5f);
 	}
 
 	extern "C" __global__ void __miss__shadow()
@@ -365,60 +394,57 @@ namespace osc {
 
 		PRD prd;
 		prd.random.init(ix + accumID * optixLaunchParams.frame.size.x, iy + accumID * optixLaunchParams.frame.size.y);
-		prd.pixelColor = vec3f(0.f);
-		prd.depth = 0;
-		prd.currentIor = 1;
 
 		// the values we store the PRD pointer in:
 		uint32_t u0, u1;
 		packPointer(&prd, u0, u1);
 
-		int numPixelSamples = 1; // 4; //NUM_PIXEL_SAMPLES;
+		//int numPixelSamples = 1; // 4; //NUM_PIXEL_SAMPLES;
 
-		//int antialiasingLevel = 2;
-		//int numPixelSamples = antialiasingLevel * antialiasingLevel;
-		//vec2f cellWidth(1.f / antialiasingLevel);
+		int antialiasingLevel = 10;
+		int numPixelSamples = antialiasingLevel * antialiasingLevel;
+		float cellWidth = 1.f / antialiasingLevel;
+		float increment = cellWidth * 0.5;
 
-		//vec2f sample;
-		const vec2f screen(vec2f(ix, iy) / vec2f(optixLaunchParams.frame.size));
-		//for (int ai = 0; ai < antialiasingLevel; ai++) {
-		//	for (int aj = 0; aj < antialiasingLevel; aj++) {
-		//		 sample = (vec2f(screen.x + ai, screen.y + aj) + vec2f(0.5)) * cellWidth;
-		//	}
-		//}
-
+		//if (ix == 600 && iy == 400) printf("#### start\n");
 		vec3f pixelColor = 0.f;
-		for (int sampleID = 0; sampleID < numPixelSamples; sampleID++) {
-			prd.pixelColor = vec3f(0.f);
-			// normalized screen plane position, in [0,1]^2
-			//const vec2f screen(vec2f(ix + prd.random(), iy + prd.random()) / vec2f(optixLaunchParams.frame.size));
+		for (int ai = 0; ai < antialiasingLevel; ai++) {
+			for (int aj = 0; aj < antialiasingLevel; aj++) {
+				prd.pixelColor = vec3f(0.f);
+				prd.depth = 0;
+				prd.currentIor = 1;
+				
+				vec2f sample(
+					 ix + ai * cellWidth + increment, 
+					 iy + aj * cellWidth + increment
+				);
+				const vec2f screen(sample / vec2f(optixLaunchParams.frame.size));
+				//const vec2f screen(vec2f(ix + prd.random(), iy + prd.random()) / vec2f(optixLaunchParams.frame.size));
+				 
+				vec3f rayDir = normalize(camera.direction
+					+ (screen.x - 0.5f) * camera.horizontal
+					+ (screen.y - 0.5f) * camera.vertical);
+				
+				optixTrace(optixLaunchParams.traversable,
+					 camera.position,
+					 rayDir,
+					 1e-4f,    // tmin
+					 1e20f,  // tmax
+					 0.0f,   // rayTime
+					 OptixVisibilityMask(255),
+					 OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+					 RADIANCE_RAY_TYPE,            // SBT offset
+					 RAY_TYPE_COUNT,               // SBT stride
+					 RADIANCE_RAY_TYPE,            // missSBTIndex 
+					 u0, u1);
 
-			// generate ray direction
-			vec3f rayDir = normalize(camera.direction
-				+ (screen.x - 0.5f) * camera.horizontal
-				+ (screen.y - 0.5f) * camera.vertical);
+				 //if (ix == 600 && iy == 400) printf("%f %f %f %i\n", prd.pixelColor.x, prd.pixelColor.y, prd.pixelColor.z, prd.depth);
+				 pixelColor += prd.pixelColor;
 
-			optixTrace(optixLaunchParams.traversable,
-				camera.position,
-				rayDir,
-				1e-4f,    // tmin
-				1e20f,  // tmax
-				0.0f,   // rayTime
-				OptixVisibilityMask(255),
-				OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
-				RADIANCE_RAY_TYPE,            // SBT offset
-				RAY_TYPE_COUNT,               // SBT stride
-				RADIANCE_RAY_TYPE,            // missSBTIndex 
-				u0, u1);
-			pixelColor += prd.pixelColor;
-			//if (ix == 600 && iy == 400)
-			//{
-			//	printf("\SCREEN: %i %i", optixLaunchParams.frame.size.x, optixLaunchParams.frame.size.y);
-			//	printf("\nROJO: %f   SAMPLE: %i", prd.pixelColor.x, sampleID);
-			//	printf("\nVERDE: %f   SAMPLE: %i", prd.pixelColor.y, sampleID);
-			//	printf("\nAZUL: %f   SAMPLE: %i \n", prd.pixelColor.z, sampleID);
-			//}
+			}
 		}
+		//if (ix == 600 && iy == 400) printf("#### end\n");
+		//}
 
 		const int r = int(255.99f * min(pixelColor.x / numPixelSamples, 1.f));
 		const int g = int(255.99f * min(pixelColor.y / numPixelSamples, 1.f));
