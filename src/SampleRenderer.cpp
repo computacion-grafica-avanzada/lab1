@@ -52,11 +52,6 @@ namespace osc {
 		TriangleMeshSBTData data;
 	};
 
-	bool isEmpty(PhotonPrint ph) {
-		return ph.position == vec3f(0) && ph.direction == vec3f(0) && ph.power == vec3f(0);
-	}
-
-
 	/*! constructor - performs all setup, including initializing
 	  optix, creates module, pipeline, programs, SBT, etc. */
 	SampleRenderer::SampleRenderer(const Model* model, const PointLight& light)
@@ -117,49 +112,40 @@ namespace osc {
 		std::cout << "#osc: Optix 7 Sample fully set up" << std::endl;
 		std::cout << GDT_TERMINAL_DEFAULT;
 
-		//if (!photonMapDone) {
-		//	launchParamsBuffer2.upload(&launchParams, 1);
+		if (!photonMapDone) {
+			launchParamsBuffer2.upload(&launchParams, 1);
 
-		//	OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
-		//		pipeline, stream,
-		//		/*! parameters and SBT */
-		//		launchParamsBuffer2.d_pointer(),
-		//		launchParamsBuffer2.sizeInBytes,
-		//		&sbt2,
-		//		/*! dimensions of the launch: */
-		//		NUM_PHOTON_SAMPLES,
-		//		1,
-		//		1
-		//	));
-		//	photonMapDone = true;
-		//	//CUDA_SYNC_CHECK();
-		//	haltonNumbers.free();
+			OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
+				pipeline, stream,
+				/*! parameters and SBT */
+				launchParamsBuffer2.d_pointer(),
+				launchParamsBuffer2.sizeInBytes,
+				&sbt2,
+				/*! dimensions of the launch: */
+				NUM_PHOTON_SAMPLES,
+				1,
+				1
+			));
+			photonMapDone = true;
+			//CUDA_SYNC_CHECK();
+			haltonNumbers.free();
 
-		//	// obtain photon traces
-		//	std::vector<PhotonPrint> photonsVec(NUM_PHOTON_SAMPLES*MAX_DEPTH);
-		//	downloadPhotons(photonsVec.data());
+			// obtain photon traces
+			std::vector<PhotonPrint> photonsVec(NUM_PHOTON_SAMPLES*MAX_DEPTH);
+			downloadPhotons(photonsVec.data());
 
-		//	// filter empty slots
-		//	std::vector<PhotonPrint> pm;
-		//	PhotonPrint nu = { vec3f(0),vec3f(0),vec3f(0) };
+			// filter empty slots
+			std::vector<PhotonPrint> pm;
+			PhotonPrint nu = { vec3f(0),vec3f(0) };
 
-		//	remove_copy(photonsVec.begin(), photonsVec.end(), std::back_inserter(pm), nu);
-		//	photonsVec.clear();
-		//	prePhotonMap.free();
+			remove_copy(photonsVec.begin(), photonsVec.end(), std::back_inserter(pm), nu);
+			photonsVec.clear();
+			prePhotonMap.free();
 
-		//	photonMap.alloc_and_upload(pm);
-		//	launchParams.photonMap = (PhotonPrint*)photonMap.d_pointer();
-		//	launchParams.mapSize = pm.size();
-
-		//	// 100 max neighbors
-		//	// calculate index x*800*100 + y*100 + z
-		//	/*std::vector<PhotonPrint> np(1200 * 800 * 100);
-		//	nearestPhotons.alloc_and_upload(np);
-		//	launchParams.nearestPhotons = (PhotonPrint*)nearestPhotons.d_pointer();*/
-		//	cout << "size print " << sizeof(PhotonPrint) << endl;
-		//	nearestPhotons.resize(1200 * 800 * MAX_NEIGHBOURS * sizeof(PhotonPrint));
-		//	launchParams.nearestPhotons = (PhotonPrint*)nearestPhotons.d_pointer();
-		//}
+			photonMap.alloc_and_upload(pm);
+			launchParams.photonMap = (PhotonPrint*)photonMap.d_pointer();
+			launchParams.mapSize = pm.size();
+		}
 	}
 
 	void SampleRenderer::createTextures()
@@ -871,7 +857,7 @@ namespace osc {
 
 	void SampleRenderer::downloadPhotons(PhotonPrint* h_pixels)
 	{
-		prePhotonMap.download(h_pixels, NUM_PHOTON_SAMPLES*10);
+		prePhotonMap.download(h_pixels, NUM_PHOTON_SAMPLES*MAX_DEPTH);
 	}
 
 } // ::osc

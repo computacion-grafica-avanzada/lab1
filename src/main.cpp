@@ -130,7 +130,7 @@ namespace osc {
 			//                    /* power */  vec3f(3.f) };
 
 			// TODO set number of photons correwctly
-			PointLight light = { NUM_PHOTON_SAMPLES, vec3f(0,1.98,0), vec3f(0,-1,0), vec3f(10000.f) };
+			PointLight light = { NUM_PHOTON_SAMPLES, vec3f(0,1.98,0), vec3f(0,-1,0), vec3f(100.f) };
 			//PointLight light = { 30, vec3f(0,1.98,0), vec3f(0,-1,0), vec3f(100.f) };
 
 			// something approximating the scale of the world, so the

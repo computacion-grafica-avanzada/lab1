@@ -118,7 +118,6 @@ namespace osc {
 			PhotonPrint pp;
 			if (prd.depth > 1) {
 				pp.position = hitPoint;
-				pp.direction = rayDir;
 				pp.power = prd.power;
 				optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 2] = pp;
 			}
@@ -222,7 +221,6 @@ namespace osc {
 			if (prd.depth > 1) {
 				PhotonPrint pp;
 				pp.position = hitPoint;
-				pp.direction = rayDir;
 				pp.power = prd.power;
 				optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 2] = pp;
 			}
