@@ -75,6 +75,7 @@ namespace osc {
 		std::cout << "#osc: creating light ..." << std::endl;
 		launchParams.light.origin = light.origin;
 		launchParams.light.normal = light.normal;
+		launchParams.light.intensity = light.power;
 		launchParams.light.photonPower = light.power / light.numberPhotons;
 
 		std::cout << launchParams.light.photonPower << std::endl;

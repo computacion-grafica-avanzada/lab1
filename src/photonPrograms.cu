@@ -22,6 +22,7 @@
 
 #include <cuda.h>
 #include "Utils.h"
+#include "ONB.h"
 
 using namespace osc;
 
@@ -111,6 +112,8 @@ namespace osc {
 		//printf("color %f %f %f maximo %f prob difuso %f mult %f %f %f\n", sbtData.color.x, sbtData.color.y, sbtData.color.z, max(sbtData.color), Pd, (sbtData.color * prd.power).x, (sbtData.color * prd.power).y, (sbtData.color * prd.power).z);
 
 		prd.depth += 1;
+		//if (coin >= 1) printf("coin %f", coin);
+		coin = prd.random();
 		if (coin <= Pd) {
 			//diffuse
 
@@ -122,10 +125,9 @@ namespace osc {
 				optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 2] = pp;
 			}
 
-			//if (prd.depth == 1) {
+			//if (prd.depth == 3) {
 			//	PhotonPrint pp;
 			//	pp.position = hitPoint;
-			//	pp.direction = rayDir;
 			//	pp.power = prd.power;
 			//	optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 1] = pp;
 			//}
@@ -139,7 +141,6 @@ namespace osc {
 				create_onb(Ng, U, V, W);
 
 				sampleUnitHemisphere(optixLaunchParams.halton[rand_index], U, V, W, direction);
-
 
 				prd.power = (prd.power * sbtData.color) / Pd;
 
@@ -158,6 +159,12 @@ namespace osc {
 					//prd.depth						// reinterpret_cast<unsigned int&>(prd.depth)
 					u0, u1
 				);
+
+				//printf("hit %f %f %f dir %f %f %f normal %f %f %f depth %i\n",
+				//	hitPoint.x, hitPoint.y, hitPoint.z,
+				//	direction.x, direction.y, direction.z,
+				//	Ng.x, Ng.y, Ng.z, prd.depth
+				//);
 			}
 		}
 		else if (coin <= Pd + Ps) {
@@ -224,6 +231,11 @@ namespace osc {
 				pp.power = prd.power;
 				optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 2] = pp;
 			}
+
+			//printf("hit %f %f %f normal %f %f %f depth %i\n",
+			//	hitPoint.x, hitPoint.y, hitPoint.z,
+			//	Ng.x, Ng.y, Ng.z, prd.depth
+			//);
 		}
 
 
@@ -283,7 +295,15 @@ namespace osc {
 		// obtain random direction
 		vec3f U, V, W, direction;
 		create_onb(optixLaunchParams.light.normal, U, V, W);
+		//printf("U %f %f %f V %f %f %f W %f %f %f\n", U.x, U.y, U.z, V.x, V.y, V.z, W.x, W.y, W.z);
+
 		sampleUnitHemisphere(optixLaunchParams.halton[ix], U, V, W, direction);
+
+		//printf("hit %f %f %f dir %f %f %f normal %f %f %f depth %i\n",
+		//	optixLaunchParams.light.origin.x, optixLaunchParams.light.origin.y, optixLaunchParams.light.origin.z,
+		//	direction.x, direction.y, direction.z,
+		//	optixLaunchParams.light.normal.x, optixLaunchParams.light.normal.y, optixLaunchParams.light.normal.z, prd.depth
+		//);
 
 		optixTrace(
 			optixLaunchParams.traversable,
