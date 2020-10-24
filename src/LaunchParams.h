@@ -20,9 +20,10 @@
 #include "optix7.h"
 #include "Photon.h"
 
+#define MAX_RADIUS 0.008
+
 const int NUM_PHOTON_SAMPLES = 10000;
 const int MAX_DEPTH = 10;
-const int MAX_NEIGHBOURS = 100;
 
 namespace osc {
   using namespace gdt;
@@ -45,13 +46,12 @@ namespace osc {
   
   struct PhotonPrint {
       vec3f position;
-      vec3f direction;
       vec3f power;
       bool operator==(PhotonPrint const& other) {
-          return position == other.position && direction == other.direction && power == other.power;
+          return position == other.position && power == other.power;
       }
       bool operator!=(PhotonPrint const& other) {
-          return position != other.position || direction != other.direction || power != other.power;
+          return position != other.position || power != other.power;
       }
   };
 
