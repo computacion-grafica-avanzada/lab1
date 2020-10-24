@@ -20,9 +20,9 @@
 #include "optix7.h"
 #include "Photon.h"
 
-#define MAX_RADIUS 0.008
+#define MAX_RADIUS 0.1
 
-const int NUM_PHOTON_SAMPLES = 10000;
+const int NUM_PHOTON_SAMPLES = 200000;
 const int MAX_DEPTH = 10;
 
 namespace osc {
@@ -71,7 +71,7 @@ namespace osc {
     } camera;
 
     struct {
-      vec3f origin, normal, photonPower;
+      vec3f origin, normal, intensity, photonPower;
     } light;
 
     struct {
