@@ -93,11 +93,16 @@ namespace osc {
 		// ------------------------------------------------------------------
 		if (dot(rayDir, Ng) > 0.f) Ng = -Ng;
 		Ng = normalize(Ng);
+		//printf("hit %f %f %f normal %f %f %f\n", 
+		//	hitPoint.x, hitPoint.y, hitPoint.z,
+		//	Ng.x, Ng.y, Ng.z
+		//);
 
 
 		int rand_index = prd.random() * NUM_PHOTON_SAMPLES;
 		//int rand_index = (ix * prd.depth + 1) % NUM_PHOTON_SAMPLES;
 		float coin = optixLaunchParams.halton[rand_index].x;
+		//float coin = optixLaunchParams.halton[ix].x;
 
 		// diffuse component is color for now
 		float Pd = max(sbtData.color * prd.power) / max(prd.power);
@@ -286,7 +291,7 @@ namespace osc {
 			optixLaunchParams.traversable,
 			optixLaunchParams.light.origin,
 			direction,
-			0.f,							// tmin
+			1e-4f,							// tmin
 			1e20f,							// tmax
 			0.0f,							// rayTime
 			OptixVisibilityMask(255),
