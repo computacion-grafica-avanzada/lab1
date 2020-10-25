@@ -46,7 +46,7 @@ namespace osc {
 
 	//static __device__ void insert_if_near(PhotonPrint*& res, int max_p, PhotonPrint candidate) {
 	//	for (int i = 0; i < max_p; i++) {
-	//		if 
+	//		if
 	//	}
 	//}
 
@@ -94,7 +94,7 @@ namespace osc {
 		// ------------------------------------------------------------------
 		if (dot(rayDir, Ng) > 0.f) Ng = -Ng;
 		Ng = normalize(Ng);
-		//printf("hit %f %f %f normal %f %f %f\n", 
+		//printf("hit %f %f %f normal %f %f %f\n",
 		//	hitPoint.x, hitPoint.y, hitPoint.z,
 		//	Ng.x, Ng.y, Ng.z
 		//);
@@ -155,7 +155,7 @@ namespace osc {
 					OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
 					PHOTON_RAY_TYPE,				// SBT offset
 					RAY_TYPE_COUNT,					// SBT stride
-					PHOTON_RAY_TYPE,				// missSBTIndex 
+					PHOTON_RAY_TYPE,				// missSBTIndex
 					//prd.depth						// reinterpret_cast<unsigned int&>(prd.depth)
 					u0, u1
 				);
@@ -190,7 +190,7 @@ namespace osc {
 					OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
 					PHOTON_RAY_TYPE,				// SBT offset
 					RAY_TYPE_COUNT,					// SBT stride
-					PHOTON_RAY_TYPE,				// missSBTIndex 
+					PHOTON_RAY_TYPE,				// missSBTIndex
 					u0, u1
 				);
 			}
@@ -198,30 +198,42 @@ namespace osc {
 		else if (coin <= Pd + Ps + Pt) {
 			// transmission
 
-			//if (prd.depth <= MAX_DEPTH) {
-			//	uint32_t u0, u1;
-			//	packPointer(&prd, u0, u1);
+			if (prd.depth <= MAX_DEPTH) {
+				uint32_t u0, u1;
+        packPointer(&prd, u0, u1);
 
-			//	// obtain reflection direction
-			//	vec3f reflectDir = reflect(-rayDir, Ng); //rayo en la direccion de reflexion desde punto;
+        float nit;
+				if (cosi < 0) { // ray comes from outside surface
+					nit = 1 / sbtData.ior;
+					cosi = -cosi;
+				} else { // ray comes from inside surface
+					nit = sbtData.ior;
+				}
 
-			//	prd.power = (prd.power * sbtData.specular) / Ps;
+				float testrit = nit * nit * (1 - cosi * cosi);
 
-			//	optixTrace(
-			//		optixLaunchParams.traversable,
-			//		hitPoint,
-			//		reflectDir,
-			//		0.f,							// tmin
-			//		1e20f,							// tmax
-			//		0.0f,							// rayTime
-			//		OptixVisibilityMask(255),
-			//		OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
-			//		PHOTON_RAY_TYPE,				// SBT offset
-			//		RAY_TYPE_COUNT,					// SBT stride
-			//		PHOTON_RAY_TYPE,				// missSBTIndex 
-			//		u0, u1
-			//	);
-			//}
+				// obtain refraction direction
+				vec3f refractionDir = nit * rayDir + (nit * cosi - sqrtf(1 - testrit)) * Ng;
+
+				if (testrit <= 1) {
+          prd.power = (prd.power * sbtData.transmission) / Pt;
+
+          optixTrace(
+            optixLaunchParams.traversable,
+            hitPoint,
+            refractionDir,
+            0.f,							// tmin
+            1e20f,							// tmax
+            0.0f,							// rayTime
+            OptixVisibilityMask(255),
+            OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
+            PHOTON_RAY_TYPE,				// SBT offset
+            RAY_TYPE_COUNT,					// SBT stride
+            PHOTON_RAY_TYPE,				// missSBTIndex
+            u0, u1
+          );
+        }
+			}
 		}
 		else {
 			// absorption check if need to store diffuse photons
@@ -316,7 +328,7 @@ namespace osc {
 			OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
 			PHOTON_RAY_TYPE,				// SBT offset
 			RAY_TYPE_COUNT,					// SBT stride
-			PHOTON_RAY_TYPE,				// missSBTIndex 
+			PHOTON_RAY_TYPE,				// missSBTIndex
 			//prd.depth						// reinterpret_cast<unsigned int&>(prd.depth)
 			u0, u1
 		);
