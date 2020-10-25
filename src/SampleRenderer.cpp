@@ -20,6 +20,7 @@
 #include <optix_function_table_definition.h>
 #include "halton.h"
 #include "PhotonMap.h"
+#include "halton_seq.h"
 
 /*! \namespace osc - Optix Siggraph Course */
 namespace osc {
@@ -66,11 +67,20 @@ namespace osc {
 		std::cout << "#osc: creating halton numbers ..." << std::endl;
 		std::vector<vec2f> haltons;
 		for (int i = 0; i < NUM_PHOTON_SAMPLES; i++) {
-			double* numeros = halton(i+181472, 2);
-			haltons.push_back(vec2f((float) numeros[0], (float) numeros[1]));
+			if (NUM_PHOTON_SAMPLES > 1000000) {
+				double* numeros = halton(i + 181472, 2);
+				haltons.push_back(vec2f((float)numeros[0], (float)numeros[1]));
+			}
+			else {
+				haltons.push_back(vec2f(HALTON_1[i], HALTON_2[i]));
+			}
 		}
 		haltonNumbers.alloc_and_upload(haltons);
 		launchParams.halton = (vec2f*)haltonNumbers.d_pointer();
+
+		std::vector<int> count = { 0 };
+		countAt.alloc_and_upload(count);
+		launchParams.solo = (int*)countAt.d_pointer();
 
 		std::cout << "#osc: creating light ..." << std::endl;
 		launchParams.light.origin = light.origin;
@@ -807,6 +817,9 @@ namespace osc {
 			launchParams.frame.size.y,
 			1
 		));
+		int full;
+		countAt.download(&full, 1);
+		cout << "count" << full << endl;
 
 		// sync - make sure the frame is rendered before we download and
 		// display (obviously, for a high-performance application you

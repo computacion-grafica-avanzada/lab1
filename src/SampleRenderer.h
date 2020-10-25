@@ -176,6 +176,8 @@ namespace osc {
 
 		bool photonMapDone = false;
 
+		CUDABuffer countAt;
+
 		CUDABuffer prePhotonMap;
 		CUDABuffer photonMap;
 
