@@ -143,19 +143,19 @@ namespace osc {
 		// ------------------------------------------------------------------
 		// compute multiple diffuse
 		// ------------------------------------------------------------------
-		//if (sbtData.color != vec3f(0)) {
-		//	vec3f totalPower = nearest_photons(hitPoint, MAX_RADIUS);
-		//	vec3f brdf = sbtData.color / M_PI;
-		//	//printf("%f %f %f \n", totalPower.x, totalPower.y, totalPower.z);
-		//	float delta_a = M_PI * MAX_RADIUS * MAX_RADIUS;
-		//	// sin filtros
-		//	pixelColor += (totalPower * brdf) / delta_a;
+		if (sbtData.color != vec3f(0)) {
+			vec3f totalPower = nearest_photons(hitPoint, MAX_RADIUS);
+			vec3f brdf = sbtData.color / M_PI;
+			//printf("%f %f %f \n", totalPower.x, totalPower.y, totalPower.z);
+			float delta_a = M_PI * MAX_RADIUS * MAX_RADIUS;
+			// sin filtros
+			pixelColor += (totalPower * brdf) / delta_a;
 
-		//	//pixelColor += totalPower;
-		//	
-		//	// filtro gauss
-		//	 //pixelColor += totalPower * brdf;
-		//}
+			//pixelColor += totalPower;
+			
+			// filtro gauss
+			 //pixelColor += totalPower * brdf;
+		}
 
 		// ------------------------------------------------------------------
 		// compute shadow
@@ -252,8 +252,8 @@ namespace osc {
 				// ray comes from outside surface
 				if (cosi < 0) {
 					// we assume that when it leaves the surface, it goes into the air
-					nit = 1 / sbtData.ior;
-					//nit = prd.currentIor / sbtData.ior;
+					//nit = 1 / sbtData.ior;
+					nit = prd.currentIor / sbtData.ior;
 					cosi = -cosi;
 					refraction.currentIor = sbtData.ior;
 					//printf("holas");
@@ -347,6 +347,9 @@ namespace osc {
 		uint32_t u0, u1;
 		packPointer(&prd, u0, u1);
 
+		//atomicAdd_system(addr, 10);
+		optixLaunchParams.solo[0] += 1;
+		//printf("int %i\n", optixLaunchParams.solo[0]);
 		//int numPixelSamples = 1; // 4; //NUM_PIXEL_SAMPLES;
 
 		int antialiasingLevel = 4;
@@ -387,7 +390,7 @@ namespace osc {
 					 RADIANCE_RAY_TYPE,            // missSBTIndex 
 					 u0, u1);
 
-				 if (ix == 600 && iy == 400) printf("%f %f %f %i\n", prd.pixelColor.x, prd.pixelColor.y, prd.pixelColor.z, prd.depth);
+				 //if (ix == 600 && iy == 400) printf("%f %f %f %i\n", prd.pixelColor.x, prd.pixelColor.y, prd.pixelColor.z, prd.depth);
 				 pixelColor += prd.pixelColor;
 
 			}

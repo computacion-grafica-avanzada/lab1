@@ -21,6 +21,7 @@
 #include <GL/gl.h>
 
 #include "PhotonMap.h"
+#include "halton_seq.h"
 
 /*! \namespace osc - Optix Siggraph Course */
 namespace osc {

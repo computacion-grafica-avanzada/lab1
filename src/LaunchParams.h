@@ -22,7 +22,7 @@
 
 #define MAX_RADIUS 0.1
 
-const int NUM_PHOTON_SAMPLES = 200000;
+const int NUM_PHOTON_SAMPLES = 10000;
 const int MAX_DEPTH = 10;
 
 namespace osc {
@@ -80,7 +80,7 @@ namespace osc {
 
     vec2f* halton;
 
-    int solo;
+    int* solo;
 
     int* ji;
 

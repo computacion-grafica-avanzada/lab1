@@ -22,7 +22,6 @@
 
 #include <cuda.h>
 #include "Utils.h"
-#include "ONB.h"
 
 using namespace osc;
 
@@ -42,13 +41,8 @@ namespace osc {
 		Random random;
 		vec3f power;
 		unsigned int depth;
+		float currentIor;
 	};
-
-	//static __device__ void insert_if_near(PhotonPrint*& res, int max_p, PhotonPrint candidate) {
-	//	for (int i = 0; i < max_p; i++) {
-	//		if
-	//	}
-	//}
 
 	//------------------------------------------------------------------------------
 	// closest hit and anyhit programs for radiance-type rays.
@@ -175,7 +169,7 @@ namespace osc {
 				packPointer(&prd, u0, u1);
 
 				// obtain reflection direction
-				vec3f reflectDir = reflect(-rayDir, Ng); //rayo en la direccion de reflexion desde punto;
+				vec3f reflectDir = reflect(rayDir, Ng); //rayo en la direccion de reflexion desde punto;
 
 				prd.power = (prd.power * sbtData.specular) / Ps;
 
@@ -199,40 +193,45 @@ namespace osc {
 			// transmission
 
 			if (prd.depth <= MAX_DEPTH) {
-				uint32_t u0, u1;
-        packPointer(&prd, u0, u1);
 
-        float nit;
+				uint32_t u0, u1;
+				packPointer(&prd, u0, u1);
+
+				float nit;
+				float cosi = dot(rayDir, Ng);
+
 				if (cosi < 0) { // ray comes from outside surface
-					nit = 1 / sbtData.ior;
+					nit = prd.currentIor / sbtData.ior;
 					cosi = -cosi;
+					prd.currentIor = sbtData.ior;
 				} else { // ray comes from inside surface
 					nit = sbtData.ior;
 				}
 
 				float testrit = nit * nit * (1 - cosi * cosi);
 
-				// obtain refraction direction
-				vec3f refractionDir = nit * rayDir + (nit * cosi - sqrtf(1 - testrit)) * Ng;
 
 				if (testrit <= 1) {
-          prd.power = (prd.power * sbtData.transmission) / Pt;
+					// obtain refraction direction
+					vec3f refractionDir = nit * rayDir + (nit * cosi - sqrtf(1 - testrit)) * Ng;
 
-          optixTrace(
-            optixLaunchParams.traversable,
-            hitPoint,
-            refractionDir,
-            0.f,							// tmin
-            1e20f,							// tmax
-            0.0f,							// rayTime
-            OptixVisibilityMask(255),
-            OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
-            PHOTON_RAY_TYPE,				// SBT offset
-            RAY_TYPE_COUNT,					// SBT stride
-            PHOTON_RAY_TYPE,				// missSBTIndex
-            u0, u1
-          );
-        }
+					prd.power = (prd.power * sbtData.transmission) / Pt;
+
+					optixTrace(
+					optixLaunchParams.traversable,
+					hitPoint,
+					refractionDir,
+					1e-4f,							// tmin
+					1e20f,							// tmax
+					0.0f,							// rayTime
+					OptixVisibilityMask(255),
+					OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
+					PHOTON_RAY_TYPE,				// SBT offset
+					RAY_TYPE_COUNT,					// SBT stride
+					PHOTON_RAY_TYPE,				// missSBTIndex
+					u0, u1
+					);
+				}
 			}
 		}
 		else {
@@ -299,6 +298,7 @@ namespace osc {
 		prd.random.init(ix, ix * optixLaunchParams.frame.size.x);
 		prd.depth = 0;
 		prd.power = optixLaunchParams.light.photonPower;
+		prd.currentIor = 1;
 		//printf("power photon %f %f %f \n", prd.power.x, prd.power.y, prd.power.z);
 
 		uint32_t u0, u1;

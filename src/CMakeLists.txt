@@ -39,6 +39,7 @@ add_executable(ex10_softShadows
   Vector3D.h
   Vector3D.cpp
   Utils.h
+  halton_seq.h
   main.cpp
   )
 
