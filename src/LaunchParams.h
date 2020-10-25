@@ -29,7 +29,7 @@ namespace osc {
   using namespace gdt;
 
   // for this simple example, we have a single ray type
-  enum { PHOTON_RAY_TYPE=0, RADIANCE_RAY_TYPE, SHADOW_RAY_TYPE, RAY_TYPE_COUNT };
+  enum { PHOTON_RAY_TYPE=0, RADIANCE_RAY_TYPE, CAUSTIC_RAY_TYPE, SHADOW_RAY_TYPE, RAY_TYPE_COUNT };
 
   struct TriangleMeshSBTData {
     vec3f  color;
@@ -43,7 +43,7 @@ namespace osc {
     cudaTextureObject_t texture;
     float ior, phong;
   };
-  
+
   struct PhotonPrint {
       vec3f position;
       vec3f power;
@@ -62,7 +62,7 @@ namespace osc {
       vec2i     size;
       int       accumID { 0 };
     } frame;
-    
+
     struct {
       vec3f position;
       vec3f direction;

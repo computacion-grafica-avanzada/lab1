@@ -20,10 +20,12 @@ include_directories(${OptiX_INCLUDE})
 
 cuda_compile_and_embed(embedded_ptx_code devicePrograms.cu)
 cuda_compile_and_embed(photon_ptx_code photonPrograms.cu)
+cuda_compile_and_embed(caustic_ptx_code causticPrograms.cu)
 
 add_executable(ex10_softShadows
   ${embedded_ptx_code}
   ${photon_ptx_code}
+  ${caustic_ptx_code}
   optix7.h
   CUDABuffer.h
   SampleRenderer.h
