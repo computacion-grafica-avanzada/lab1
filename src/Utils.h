@@ -101,4 +101,27 @@ namespace osc {
 		return vec.z;
 	}
 
+	static __device__ __inline__
+		int hash(vec3f position, vec3f gridSize, vec3f lowerBound) 
+	{
+		vec3f local = position - lowerBound;
+		//vec3f G(
+		//	local.x > 0.f ? floor(local.x / MAX_RADIUS) : 0.f,
+		//	local.y > 0.f ? floor(local.y / MAX_RADIUS) : 0.f,
+		//	local.z > 0.f ? floor(local.z / MAX_RADIUS) : 0.f
+		//);
+		vec3f G(
+			fmaxf(0.f, floor(local.x / MAX_RADIUS)),
+			fmaxf(0.f, floor(local.y / MAX_RADIUS)),
+			fmaxf(0.f, floor(local.z / MAX_RADIUS))
+		);
+		return G.x + G.y * gridSize.x + G.z * gridSize.x * gridSize.y;
+	}
+
+	static __device__ __inline__
+		int hash(vec3f position, vec3f gridSize)
+	{
+		return position.x + position.y * gridSize.x + position.z * gridSize.x * gridSize.y;
+	}
+
 } // ::osc

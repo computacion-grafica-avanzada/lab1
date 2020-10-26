@@ -22,7 +22,7 @@
 
 #define MAX_RADIUS 0.1
 
-const int NUM_PHOTON_SAMPLES = 10000;
+const int NUM_PHOTON_SAMPLES = 100000;
 const int MAX_DEPTH = 10;
 
 namespace osc {
@@ -88,7 +88,12 @@ namespace osc {
     PhotonPrint* photonMap;
     int mapSize;
 
-    PhotonPrint* nearestPhotons;
+    // hash grid
+    PhotonPrint* pm;
+    int* pmCount;
+    int* pmStarts;
+    vec3f gridSize;
+    vec3f lowerBound;
     
     OptixTraversableHandle traversable;
   };
