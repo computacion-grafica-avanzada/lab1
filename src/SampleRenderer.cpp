@@ -78,6 +78,25 @@ namespace osc {
 		haltonNumbers.alloc_and_upload(haltons);
 		launchParams.halton = (vec2f*)haltonNumbers.d_pointer();
 
+		std::cout << "#osc: setting hash grid ..." << std::endl;
+		vec3f cells = model->bounds.size() / vec3f(MAX_RADIUS);
+		cells = vec3f(ceilf(cells.x), ceilf(cells.y), ceilf(cells.z));
+
+		// hash
+		int totalCells = cells.x * cells.y * cells.z;
+		//std::vector<PhotonPrint> pmGrid(totalCells);
+		//pm.alloc_and_upload(pmGrid);
+		//launchParams.pm = (PhotonPrint*)pm.d_pointer();
+
+		//std::vector<int> pmGridCount(totalCells, 0);
+		//pmCount.alloc_and_upload(pmGridCount);
+		//launchParams.pmCount = (int*)pmCount.d_pointer();
+
+		launchParams.gridSize = cells;
+		launchParams.lowerBound = model->bounds.lower;
+
+		std::cout << "bounds " << model->bounds.size() << "divide " << model->bounds.size() / vec3f(MAX_RADIUS) << " " << ceilf(2.3f) << " "<< ceilf(2.9f) << endl;
+
 		std::vector<int> count = { 0 };
 		countAt.alloc_and_upload(count);
 		launchParams.solo = (int*)countAt.d_pointer();
@@ -141,21 +160,56 @@ namespace osc {
 			//CUDA_SYNC_CHECK();
 			haltonNumbers.free();
 
+			//pm.download(pmGrid.data(), pmGrid.size());
+			//pmCount.download(pmGridCount.data(), pmGridCount.size());
+
 			// obtain photon traces
 			std::vector<PhotonPrint> photonsVec(NUM_PHOTON_SAMPLES*MAX_DEPTH);
 			downloadPhotons(photonsVec.data());
 
 			// filter empty slots
-			std::vector<PhotonPrint> pm;
+			std::vector<PhotonPrint> photonM;
 			PhotonPrint nu = { vec3f(0),vec3f(0) };
 
-			remove_copy(photonsVec.begin(), photonsVec.end(), std::back_inserter(pm), nu);
+			remove_copy(photonsVec.begin(), photonsVec.end(), std::back_inserter(photonM), nu);
 			photonsVec.clear();
 			prePhotonMap.free();
 
-			photonMap.alloc_and_upload(pm);
+			photonMap.alloc_and_upload(photonM);
 			launchParams.photonMap = (PhotonPrint*)photonMap.d_pointer();
-			launchParams.mapSize = pm.size();
+			launchParams.mapSize = photonM.size();
+
+			std::vector<int> pmGridCount(totalCells, 0);
+
+			std::vector<std::vector<PhotonPrint>> multiple(totalCells);
+			for (auto ph : photonM) {
+				vec3f local = ph.position - launchParams.lowerBound;
+				vec3f G = vec3f(
+					fmaxf(0.f, floor(local.x / MAX_RADIUS)),
+					fmaxf(0.f, floor(local.y / MAX_RADIUS)),
+					fmaxf(0.f, floor(local.z / MAX_RADIUS))
+				);
+				int hashId = G.x + G.y * cells.x + G.z * cells.x * cells.y;
+				multiple[hashId].push_back(ph);
+				pmGridCount[hashId] += 1;
+			}
+
+			std::vector<int> pmGridStarts(totalCells, 0);
+			std::vector<PhotonPrint> traces;
+			for (int i = 0; i < multiple.size(); i++) {
+				pmGridStarts[i] = traces.size();
+				for (auto trace : multiple[i]) {
+					traces.push_back(trace);
+				}
+			}
+			pmStarts.alloc_and_upload(pmGridStarts);
+			launchParams.pmStarts = (int*)pmStarts.d_pointer();
+			
+			pmCount.alloc_and_upload(pmGridCount);
+			launchParams.pmCount = (int*)pmCount.d_pointer();
+
+			pm.alloc_and_upload(traces);
+			launchParams.pm = (PhotonPrint*)pm.d_pointer();
 		}
 	}
 
@@ -819,7 +873,10 @@ namespace osc {
 		));
 		int full;
 		countAt.download(&full, 1);
-		cout << "count" << full << endl;
+		//cout << "count" << full << endl;
+
+		std::vector<int> count = { 0 };
+		countAt.upload(count.data(), count.size());
 
 		// sync - make sure the frame is rendered before we download and
 		// display (obviously, for a high-performance application you

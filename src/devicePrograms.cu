@@ -75,6 +75,93 @@ namespace osc {
 		return totalPower;
 	}
 
+	//static __device__ vec3f nearest_photons_hash(vec3f point) {
+	//	vec3f totalPower(0.f);
+	//	vec3f radius(MAX_RADIUS);
+	//	float sq_r = MAX_RADIUS * MAX_RADIUS;
+
+	//	vec3f local = point - optixLaunchParams.lowerBound;
+	//	vec3f minPoint = (local - radius) / radius;
+	//	vec3i from(
+	//		fmaxf(0.f, floor(minPoint.x)),
+	//		fmaxf(0.f, floor(minPoint.y)),
+	//		fmaxf(0.f, floor(minPoint.z))
+	//	);
+	//	vec3f maxPoint = (local + radius) / radius;
+	//	vec3i to(
+	//		fminf(optixLaunchParams.gridSize.x-1, floor(maxPoint.x)),
+	//		fminf(optixLaunchParams.gridSize.y-1, floor(maxPoint.y)),
+	//		fminf(optixLaunchParams.gridSize.z-1, floor(maxPoint.z))
+	//	);
+	//	//printf("min %i %i %i max %i %i %i\n", from.x, from.y, from.z, to.x, to.y, to.z);
+
+	//	for (int x = from.x; x <= to.x; x++) {
+	//		for (int y = from.y; y <= to.y; y++) {
+	//			for (int z = from.z; z <= to.z; z++) {
+	//				int hashId = hash(
+	//					vec3f(x, y, z), 
+	//					optixLaunchParams.gridSize
+	//				);
+	//				
+	//				if (optixLaunchParams.pmCount[hashId] > 0) {
+	//					vec3f dir = optixLaunchParams.pm[hashId].position - point;
+	//					float sq_dist = dot(dir, dir);
+	//					if (sq_dist <= sq_r)
+	//						totalPower += optixLaunchParams.pm[hashId].power * optixLaunchParams.pmCount[hashId];
+	//				}
+	//			}
+	//		}
+
+	//	}
+	//	return totalPower;
+	//}
+
+	static __device__ vec3f nearest_photons_hash_list(vec3f point) {
+		vec3f totalPower(0.f);
+		vec3f radius(MAX_RADIUS);
+		float sq_r = MAX_RADIUS * MAX_RADIUS;
+
+		vec3f local = point - optixLaunchParams.lowerBound;
+		vec3f minPoint = (local - radius) / radius;
+		vec3i from(
+			fmaxf(0.f, floor(minPoint.x)),
+			fmaxf(0.f, floor(minPoint.y)),
+			fmaxf(0.f, floor(minPoint.z))
+		);
+		vec3f maxPoint = (local + radius) / radius;
+		vec3i to(
+			fminf(optixLaunchParams.gridSize.x - 1, floor(maxPoint.x)),
+			fminf(optixLaunchParams.gridSize.y - 1, floor(maxPoint.y)),
+			fminf(optixLaunchParams.gridSize.z - 1, floor(maxPoint.z))
+		);
+		//printf("min %i %i %i max %i %i %i\n", from.x, from.y, from.z, to.x, to.y, to.z);
+
+		for (int x = from.x; x <= to.x; x++) {
+			for (int y = from.y; y <= to.y; y++) {
+				for (int z = from.z; z <= to.z; z++) {
+					int hashId = hash(
+						vec3f(x, y, z),
+						optixLaunchParams.gridSize
+					);
+
+					int start = optixLaunchParams.pmStarts[hashId];
+					for (int i = 0; i < optixLaunchParams.pmCount[hashId]; i++) {
+						vec3f dir = optixLaunchParams.pm[start+i].position - point;
+						//printf("pos %f %f %f", 
+						//	optixLaunchParams.pm[hashId + i].position.x, 
+						//	optixLaunchParams.pm[hashId + i].position.y,
+						//	optixLaunchParams.pm[hashId + i].position.z);
+						float sq_dist = dot(dir, dir);
+						if (sq_dist <= sq_r)
+							totalPower += optixLaunchParams.pm[start+i].power;
+					}
+				}
+			}
+
+		}
+		return totalPower;
+	}
+
 	//------------------------------------------------------------------------------
 	// closest hit and anyhit programs for radiance-type rays.
 	//
@@ -101,8 +188,8 @@ namespace osc {
 		// multiple diffuse reflections
 		//	primer paso, sacar radiancia del hit nomas
 		//	trazar reflexiones difusas y ver radiancia en mapa de fotones para cada uno
-
 		PRD& prd = *getPRD<PRD>();
+		if (prd.depth == 0) atomicAdd(&optixLaunchParams.solo[0], 1);
 		const TriangleMeshSBTData& sbtData = *(const TriangleMeshSBTData*)optixGetSbtDataPointer();
 		const int ix = optixGetLaunchIndex().x;
 		const int iy = optixGetLaunchIndex().y;
@@ -144,7 +231,9 @@ namespace osc {
 		// compute multiple diffuse
 		// ------------------------------------------------------------------
 		if (sbtData.color != vec3f(0)) {
-			vec3f totalPower = nearest_photons(hitPoint, MAX_RADIUS);
+			//vec3f totalPower = nearest_photons(hitPoint, MAX_RADIUS);
+			//vec3f totalPower = nearest_photons_hash(hitPoint);
+			vec3f totalPower = nearest_photons_hash_list(hitPoint);
 			vec3f brdf = sbtData.color / M_PI;
 			//printf("%f %f %f \n", totalPower.x, totalPower.y, totalPower.z);
 			float delta_a = M_PI * MAX_RADIUS * MAX_RADIUS;
@@ -347,12 +436,10 @@ namespace osc {
 		uint32_t u0, u1;
 		packPointer(&prd, u0, u1);
 
-		//atomicAdd_system(addr, 10);
-		optixLaunchParams.solo[0] += 1;
 		//printf("int %i\n", optixLaunchParams.solo[0]);
 		//int numPixelSamples = 1; // 4; //NUM_PIXEL_SAMPLES;
 
-		int antialiasingLevel = 4;
+		int antialiasingLevel = 10;
 		int numPixelSamples = antialiasingLevel * antialiasingLevel;
 		float cellWidth = 1.f / antialiasingLevel;
 		float increment = cellWidth * 0.5;

@@ -117,6 +117,10 @@ namespace osc {
 				pp.position = hitPoint;
 				pp.power = prd.power;
 				optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 2] = pp;
+				
+				//int hashId = hash(hitPoint, optixLaunchParams.gridSize, optixLaunchParams.lowerBound);
+				//optixLaunchParams.pm[hashId] = pp;
+				//atomicAdd(&optixLaunchParams.pmCount[hashId], 1);
 			}
 
 			//if (prd.depth == 3) {
@@ -241,6 +245,10 @@ namespace osc {
 				pp.position = hitPoint;
 				pp.power = prd.power;
 				optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 2] = pp;
+
+				//int hashId = hash(hitPoint, optixLaunchParams.gridSize, optixLaunchParams.lowerBound);
+				//optixLaunchParams.pm[hashId] = pp;
+				//atomicAdd(&optixLaunchParams.pmCount[hashId], 1);
 			}
 
 			//printf("hit %f %f %f normal %f %f %f depth %i\n",
@@ -291,6 +299,7 @@ namespace osc {
 
 		Random ran;
 		ran.init(ix, ix * optixLaunchParams.frame.size.x);
+		//printf("%f", optixLaunchParams.gridSize.x);
 
 		//printf("\n random 1: %f 2: %f 3: %f ix: %d hax: %f hay: %f\n", ran(), ran(), ran(), ix, optixLaunchParams.halton[ix].x, optixLaunchParams.halton[ix].y);
 

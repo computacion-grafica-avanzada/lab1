@@ -181,7 +181,9 @@ namespace osc {
 		CUDABuffer prePhotonMap;
 		CUDABuffer photonMap;
 
-		CUDABuffer nearestPhotons;
+		CUDABuffer pm;
+		CUDABuffer pmCount;
+		CUDABuffer pmStarts;
 	};
 
 } // ::osc
