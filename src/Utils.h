@@ -102,7 +102,7 @@ namespace osc {
 	}
 
 	static __device__ __inline__
-		int hash(vec3f position, vec3f gridSize, vec3f lowerBound) 
+		int hash(vec3f position, vec3i gridSize, vec3f lowerBound) 
 	{
 		vec3f local = position - lowerBound;
 		//vec3f G(
@@ -119,9 +119,19 @@ namespace osc {
 	}
 
 	static __device__ __inline__
-		int hash(vec3f position, vec3f gridSize)
+		int hash(vec3i position, vec3i gridSize)
 	{
 		return position.x + position.y * gridSize.x + position.z * gridSize.x * gridSize.y;
+	}
+
+	static __device__ __inline__
+		int maximo(int a, int b) {
+		return (a > b) ? a : b;
+	}
+
+	static __device__ __inline__
+		int minimo(int a, int b) {
+		return (a < b) ? a : b;
 	}
 
 } // ::osc

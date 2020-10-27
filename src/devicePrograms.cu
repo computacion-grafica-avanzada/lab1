@@ -122,42 +122,38 @@ namespace osc {
 		float sq_r = MAX_RADIUS * MAX_RADIUS;
 
 		vec3f local = point - optixLaunchParams.lowerBound;
+		// find min 3D grid index
 		vec3f minPoint = (local - radius) / radius;
 		vec3i from(
-			fmaxf(0.f, floor(minPoint.x)),
-			fmaxf(0.f, floor(minPoint.y)),
-			fmaxf(0.f, floor(minPoint.z))
+			maximo(0, (int)minPoint.x),
+			maximo(0, (int)minPoint.y),
+			maximo(0, (int)minPoint.z)
 		);
-		vec3f maxPoint = (local + radius) / radius;
+		// find max 3D grid index
+		vec3f maxPoint = (local + radius) / radius;		
 		vec3i to(
-			fminf(optixLaunchParams.gridSize.x - 1, floor(maxPoint.x)),
-			fminf(optixLaunchParams.gridSize.y - 1, floor(maxPoint.y)),
-			fminf(optixLaunchParams.gridSize.z - 1, floor(maxPoint.z))
+			minimo(optixLaunchParams.gridSize.x - 1, (int)maxPoint.x),
+			minimo(optixLaunchParams.gridSize.y - 1, (int)maxPoint.y),
+			minimo(optixLaunchParams.gridSize.z - 1, (int)maxPoint.z)
 		);
-		//printf("min %i %i %i max %i %i %i\n", from.x, from.y, from.z, to.x, to.y, to.z);
 
+		int count = 0;
 		for (int x = from.x; x <= to.x; x++) {
 			for (int y = from.y; y <= to.y; y++) {
 				for (int z = from.z; z <= to.z; z++) {
 					int hashId = hash(
-						vec3f(x, y, z),
+						vec3i(x, y, z),
 						optixLaunchParams.gridSize
 					);
-
 					int start = optixLaunchParams.pmStarts[hashId];
 					for (int i = 0; i < optixLaunchParams.pmCount[hashId]; i++) {
 						vec3f dir = optixLaunchParams.pm[start+i].position - point;
-						//printf("pos %f %f %f", 
-						//	optixLaunchParams.pm[hashId + i].position.x, 
-						//	optixLaunchParams.pm[hashId + i].position.y,
-						//	optixLaunchParams.pm[hashId + i].position.z);
 						float sq_dist = dot(dir, dir);
 						if (sq_dist <= sq_r)
 							totalPower += optixLaunchParams.pm[start+i].power;
 					}
 				}
 			}
-
 		}
 		return totalPower;
 	}
@@ -242,7 +238,7 @@ namespace osc {
 			//pixelColor += totalPower;
 			
 			// filtro gauss
-			 //pixelColor += totalPower * brdf;
+				//pixelColor += totalPower * brdf;
 		}
 
 		// ------------------------------------------------------------------

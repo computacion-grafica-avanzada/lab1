@@ -77,9 +77,9 @@ namespace osc {
 
 		std::cout << "#osc: setting hash grid ..." << std::endl;
 		vec3f cells = model->bounds.size() / vec3f(MAX_RADIUS);
-		cells = vec3f(ceilf(cells.x), ceilf(cells.y), ceilf(cells.z));
+		vec3i gridSize((int)ceilf(cells.x), (int)ceilf(cells.y), (int)ceilf(cells.z));
 
-		launchParams.gridSize = cells;
+		launchParams.gridSize = gridSize;
 		launchParams.lowerBound = model->bounds.lower;
 
 		std::cout << "#osc: creating light ..." << std::endl;
@@ -117,16 +117,54 @@ namespace osc {
 		buildSBTcaustics();
 
 		launchParamsBufferRender.alloc(sizeof(launchParams));
-		launchParamsBufferCaustics.alloc(sizeof(launchParams));
 		std::cout << "#osc: context, module, pipeline, etc, all set up ..." << std::endl;
 
 		std::cout << GDT_TERMINAL_GREEN;
 		std::cout << "#osc: Optix 7 Sample fully set up" << std::endl;
 		std::cout << GDT_TERMINAL_DEFAULT;
 
+		std::vector<int> projection(NC * NC, 0);
+		projectionMap.alloc_and_upload(projection);
+		launchParams.projectionMap = (int*)projectionMap.d_pointer();
+
 		std::cout << "#osc: starting photon pass" << std::endl;
 		photonPass();
 		std::cout << "#osc: finished photon pass" << std::endl;
+
+		projectionMap.download(projection.data(), projection.size());
+
+		std::cout << "#osc: starting photon pass" << std::endl;
+		causticsPass();
+		std::cout << "#osc: finished photon pass" << std::endl;
+	}
+
+	int max(int a, int b) {
+		return (a > b) ? a : b;
+	}
+
+	void SampleRenderer::causticsPass()
+	{
+		// resize our cuda frame buffer
+		preCausticMap.resize(NUM_CAUSTIC_PER_CELL * NC * NC * sizeof(PhotonPrint));
+		launchParams.preCausticMap = (PhotonPrint*)preCausticMap.d_pointer();
+
+		// set launchParams for launch
+		launchParamsBufferCaustics.alloc(sizeof(launchParams));
+		launchParamsBufferCaustics.upload(&launchParams, 1);
+
+		OPTIX_CHECK(optixLaunch(
+			pipeline,
+			stream,
+			launchParamsBufferCaustics.d_pointer(),
+			launchParamsBufferCaustics.sizeInBytes,
+			&sbtCaustics,
+			NC,
+			NC,
+			1
+		));
+
+		std::vector<PhotonPrint> photonsData(NUM_CAUSTIC_PER_CELL * NC * NC);
+		preCausticMap.download(photonsData.data(), photonsData.size());
 	}
 
 	void SampleRenderer::photonPass() 
@@ -164,10 +202,10 @@ namespace osc {
 		for (auto ph : photonsData) {
 			if (ph != nu) {
 				vec3f local = ph.position - launchParams.lowerBound;
-				vec3f G = vec3f(
-					fmaxf(0.f, floor(local.x / MAX_RADIUS)),
-					fmaxf(0.f, floor(local.y / MAX_RADIUS)),
-					fmaxf(0.f, floor(local.z / MAX_RADIUS))
+				vec3i G(
+					max(0, (int)(local.x / MAX_RADIUS)),
+					max(0, (int)(local.y / MAX_RADIUS)),
+					max(0, (int)(local.z / MAX_RADIUS))
 				);
 				int hashId = G.x + G.y * launchParams.gridSize.x + G.z * launchParams.gridSize.x * launchParams.gridSize.y;
 				multiple[hashId].push_back(ph);

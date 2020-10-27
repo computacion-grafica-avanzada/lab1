@@ -169,6 +169,13 @@ namespace osc {
 			// specular
 
 			if (prd.depth <= MAX_DEPTH) {
+
+				if (prd.depth == 1) {
+					int x = 1 + NC * (1 + rayDir.x) / 2;
+					int y = 1 + NC * (1 + rayDir.y) / 2;
+					optixLaunchParams.projectionMap[x+NC*y] = 1;
+				}
+
 				uint32_t u0, u1;
 				packPointer(&prd, u0, u1);
 
@@ -197,6 +204,12 @@ namespace osc {
 			// transmission
 
 			if (prd.depth <= MAX_DEPTH) {
+
+				if (prd.depth == 1) {
+					int x = 1 + NC * (1 + rayDir.x) / 2;
+					int y = 1 + NC * (1 + rayDir.y) / 2;
+					optixLaunchParams.projectionMap[x + NC * y] = 1;
+				}
 
 				uint32_t u0, u1;
 				packPointer(&prd, u0, u1);
@@ -279,14 +292,6 @@ namespace osc {
 
 	extern "C" __global__ void __miss__photon()
 	{
-		PhotonPRD& prd = *(PhotonPRD*)getPRD<PhotonPRD>();
-		//prd.depth = prd.random() * 10;
-
-		//without random
-		//PhotonPRD prd = getPhotonPRD();
-		//prd.depth = 100;
-		//setPhotonPRD(prd);
-		//printf("miss %i \n", prd.depth);
 	}
 
 	//------------------------------------------------------------------------------

@@ -63,6 +63,7 @@ namespace osc {
 
 		/*! perform the first pass of photon mapping */
 		void photonPass();
+		void causticsPass();
 	protected:
 		// ------------------------------------------------------------------
 		// internal helper functions
@@ -180,6 +181,11 @@ namespace osc {
 
 		CUDABuffer prePhotonMap;
 		CUDABuffer photonMap;
+
+		CUDABuffer preCausticMap;
+		CUDABuffer causticMap;
+
+		CUDABuffer projectionMap;
 
 		CUDABuffer pm;
 		CUDABuffer pmCount;

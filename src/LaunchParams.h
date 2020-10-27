@@ -24,6 +24,8 @@
 
 const int NUM_PHOTON_SAMPLES = 100000;
 const int MAX_DEPTH = 10;
+const int NC = 10;
+const int NUM_CAUSTIC_PER_CELL = 1000;
 
 namespace osc {
   using namespace gdt;
@@ -80,11 +82,17 @@ namespace osc {
     PhotonPrint* photonMap;
     int mapSize;
 
+    // caustics
+    PhotonPrint* preCausticMap;
+    PhotonPrint* causticMap;
+
+    int* projectionMap;
+
     // hash grid
     PhotonPrint* pm;
     int* pmCount;
     int* pmStarts;
-    vec3f gridSize;
+    vec3i gridSize;
     vec3f lowerBound;
     
     OptixTraversableHandle traversable;
