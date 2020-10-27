@@ -93,11 +93,9 @@ namespace osc {
 		void createPipeline();
 
 		/*! constructs the shader binding table */
-		void buildSBT();
-		void buildSBT2();
-
-		/* adds a raygen program to the shader binding table */
-		void addRaygenSBT(int index);
+		void buildSBTrender();
+		void buildSBTglobal();
+		void buildSBTcaustics();
 
 		/*! build an acceleration structure for the given triangle mesh */
 		OptixTraversableHandle buildAccel();
@@ -122,31 +120,37 @@ namespace osc {
 		/*! @} */
 
 		/*! @{ the module that contains out device programs */
-		OptixModule                 module;
-		OptixModule                 photonModule;
+		OptixModule                 renderModule;
+		OptixModule                 globalModule;
+		OptixModule                 causticsModule;
 		OptixModuleCompileOptions   moduleCompileOptions;
 		/* @} */
 
 		/*! vector of all our program(group)s, and the SBT built around
 			them */
 		std::vector<OptixProgramGroup> raygenPGs;
-		CUDABuffer raygenRecordsBuffer;
-		CUDABuffer raygenRecordsBuffer2;
+		CUDABuffer raygenRecordsBufferRender;
+		CUDABuffer raygenRecordsBufferGlobal;
+		CUDABuffer raygenRecordsBufferCaustics;
 		std::vector<OptixProgramGroup> missPGs;
-		CUDABuffer missRecordsBuffer;
-		CUDABuffer missRecordsBuffer2;
+		CUDABuffer missRecordsBufferRender;
+		CUDABuffer missRecordsBufferGlobal;
+		CUDABuffer missRecordsBufferCaustics;
 		std::vector<OptixProgramGroup> hitgroupPGs;
-		CUDABuffer hitgroupRecordsBuffer;
-		CUDABuffer hitgroupRecordsBuffer2;
+		CUDABuffer hitgroupRecordsBufferRender;
+		CUDABuffer hitgroupRecordsBufferGlobal;
+		CUDABuffer hitgroupRecordsBufferCaustics;
 
-		OptixShaderBindingTable sbt = {};
-		OptixShaderBindingTable sbt2 = {};
+		OptixShaderBindingTable sbtRender = {};
+		OptixShaderBindingTable sbtGlobal = {};
+		OptixShaderBindingTable sbtCaustics = {};
 
 		/*! @{ our launch parameters, on the host, and the buffer to store
 			them on the device */
 		LaunchParams launchParams;
-		CUDABuffer   launchParamsBuffer;
-		CUDABuffer   launchParamsBuffer2;
+		CUDABuffer   launchParamsBufferRender;
+		CUDABuffer   launchParamsBufferGlobal;
+		CUDABuffer   launchParamsBufferCaustics;
 		/*! @} */
 
 		CUDABuffer colorBuffer;
@@ -173,10 +177,6 @@ namespace osc {
 		std::vector<cudaArray_t>         textureArrays;
 		std::vector<cudaTextureObject_t> textureObjects;
 		/*! @} */
-
-		bool photonMapDone = false;
-
-		CUDABuffer countAt;
 
 		CUDABuffer prePhotonMap;
 		CUDABuffer photonMap;
