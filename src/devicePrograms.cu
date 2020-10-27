@@ -226,17 +226,24 @@ namespace osc {
 		// compute multiple diffuse
 		// ------------------------------------------------------------------
 		if (sbtData.color != vec3f(0)) {
-			//vec3f totalPower = nearest_photons(hitPoint, MAX_RADIUS);
-			//vec3f totalPower = nearest_photons_hash(hitPoint);
+			float radius;
+			if (optixLaunchParams.onlyPhotons)
+			{
+				radius = MAX_RADIUS_ONLY_PHOTONS;
+			}
+			else
+			{
+				radius = MAX_RADIUS;
+			}
 			vec3f totalPower = nearest_photons_hash_list(hitPoint);
 			vec3f brdf = sbtData.color / M_PI;
 			//printf("%f %f %f \n", totalPower.x, totalPower.y, totalPower.z);
-			float delta_a = M_PI * MAX_RADIUS * MAX_RADIUS;
+			float delta_a = M_PI * radius * radius;
 			// sin filtros
 			pixelColor += (totalPower * brdf) / delta_a;
 
 			//pixelColor += totalPower;
-			
+
 			// filtro gauss
 				//pixelColor += totalPower * brdf;
 		}
@@ -287,8 +294,11 @@ namespace osc {
 				vec3f reflectDir = reflect(-lightDir, Ng);
 				float RdotV = fmaxf(0.f, dot(reflectDir, -rayDir));
 
-				pixelColor += base * sbtData.color * (NdotL / NUM_LIGHT_SAMPLES);
-				pixelColor += base * sbtData.specular * pow(RdotV, sbtData.phong) / NUM_LIGHT_SAMPLES;
+				if (!optixLaunchParams.onlyPhotons)
+				{
+					pixelColor += base * sbtData.color * (NdotL / NUM_LIGHT_SAMPLES);
+					pixelColor += base * sbtData.specular * pow(RdotV, sbtData.phong) / NUM_LIGHT_SAMPLES;
+				}
 				//printf("%f %f %f\n", pixelColor.x, pixelColor.y, pixelColor.z);
 			}
 		}
@@ -322,7 +332,10 @@ namespace osc {
 					RADIANCE_RAY_TYPE,            // missSBTIndex 
 					u0, u1
 				);
-				pixelColor += sbtData.specular * reflection.pixelColor;
+				if (!optixLaunchParams.onlyPhotons)
+				{
+					pixelColor += sbtData.specular * reflection.pixelColor;
+				}
 			}
 
 			// refraction component
@@ -369,7 +382,10 @@ namespace osc {
 						RADIANCE_RAY_TYPE,            // missSBTIndex 
 						u0, u1
 					);
-					pixelColor += sbtData.transmission * refraction.pixelColor;
+					if (!optixLaunchParams.onlyPhotons)
+					{
+						pixelColor += sbtData.transmission * refraction.pixelColor;
+					}
 				}
 			}
 		}
@@ -446,34 +462,34 @@ namespace osc {
 				prd.pixelColor = vec3f(0.f);
 				prd.depth = 0;
 				prd.currentIor = 1;
-				
+
 				vec2f sample(
-					 ix + ai * cellWidth + increment, 
-					 iy + aj * cellWidth + increment
+					ix + ai * cellWidth + increment,
+					iy + aj * cellWidth + increment
 				);
 				const vec2f screen(sample / vec2f(optixLaunchParams.frame.size));
 				//const vec2f screen(vec2f(ix + prd.random(), iy + prd.random()) / vec2f(optixLaunchParams.frame.size));
-				 
+
 				vec3f rayDir = normalize(camera.direction
 					+ (screen.x - 0.5f) * camera.horizontal
 					+ (screen.y - 0.5f) * camera.vertical);
 
-			
-				optixTrace(optixLaunchParams.traversable,
-					 camera.position,
-					 rayDir,
-					 1e-4f,    // tmin
-					 1e20f,  // tmax
-					 0.0f,   // rayTime
-					 OptixVisibilityMask(255),
-					 OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
-					 RADIANCE_RAY_TYPE,            // SBT offset
-					 RAY_TYPE_COUNT,               // SBT stride
-					 RADIANCE_RAY_TYPE,            // missSBTIndex 
-					 u0, u1);
 
-				 //if (ix == 600 && iy == 400) printf("%f %f %f %i\n", prd.pixelColor.x, prd.pixelColor.y, prd.pixelColor.z, prd.depth);
-				 pixelColor += prd.pixelColor;
+				optixTrace(optixLaunchParams.traversable,
+					camera.position,
+					rayDir,
+					1e-4f,    // tmin
+					1e20f,  // tmax
+					0.0f,   // rayTime
+					OptixVisibilityMask(255),
+					OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+					RADIANCE_RAY_TYPE,            // SBT offset
+					RAY_TYPE_COUNT,               // SBT stride
+					RADIANCE_RAY_TYPE,            // missSBTIndex 
+					u0, u1);
+
+				//if (ix == 600 && iy == 400) printf("%f %f %f %i\n", prd.pixelColor.x, prd.pixelColor.y, prd.pixelColor.z, prd.depth);
+				pixelColor += prd.pixelColor;
 
 			}
 		}
