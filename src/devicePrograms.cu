@@ -54,26 +54,26 @@ namespace osc {
 	};
 
 	// todo check disk and use n photons
-	static __device__ vec3f nearest_photons(vec3f point, float max_r) {
-		vec3f totalPower = 0;
-		float sq_r = max_r * max_r;
+	//static __device__ vec3f nearest_photons(vec3f point, float max_r) {
+	//	vec3f totalPower = 0;
+	//	float sq_r = max_r * max_r;
 
-		//float denominator = 1 - expf(-BETA);
+	//	//float denominator = 1 - expf(-BETA);
 
-		for (int i = 0; i < optixLaunchParams.mapSize; i++) {
-			vec3f dir = optixLaunchParams.photonMap[i].position - point;
-			float sq_dist = dot(dir,dir);
-			
-			//float numerator = 1 - expf(-BETA * (sq_dist / 2 * sq_r));
-			//float w_pg = ALPHA * (1 - numerator/denominator);
-			
-			//printf("hola %f %f\n", sq_dist, sq_r);
-			if (sq_dist <= sq_r) {
-				totalPower += optixLaunchParams.photonMap[i].power; // *w_pg;
-			}
-		}
-		return totalPower;
-	}
+	//	for (int i = 0; i < optixLaunchParams.mapSize; i++) {
+	//		vec3f dir = optixLaunchParams.photonMap[i].position - point;
+	//		float sq_dist = dot(dir,dir);
+	//		
+	//		//float numerator = 1 - expf(-BETA * (sq_dist / 2 * sq_r));
+	//		//float w_pg = ALPHA * (1 - numerator/denominator);
+	//		
+	//		//printf("hola %f %f\n", sq_dist, sq_r);
+	//		if (sq_dist <= sq_r) {
+	//			totalPower += optixLaunchParams.photonMap[i].power; // *w_pg;
+	//		}
+	//	}
+	//	return totalPower;
+	//}
 
 	//static __device__ vec3f nearest_photons_hash(vec3f point) {
 	//	vec3f totalPower(0.f);
@@ -189,7 +189,6 @@ namespace osc {
 		//	primer paso, sacar radiancia del hit nomas
 		//	trazar reflexiones difusas y ver radiancia en mapa de fotones para cada uno
 		PRD& prd = *getPRD<PRD>();
-		if (prd.depth == 0) atomicAdd(&optixLaunchParams.solo[0], 1);
 		const TriangleMeshSBTData& sbtData = *(const TriangleMeshSBTData*)optixGetSbtDataPointer();
 		const int ix = optixGetLaunchIndex().x;
 		const int iy = optixGetLaunchIndex().y;

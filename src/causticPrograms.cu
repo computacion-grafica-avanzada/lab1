@@ -22,7 +22,6 @@
 
 #include <cuda.h>
 #include "Utils.h"
-#include "ONB.h"
 
 using namespace osc;
 

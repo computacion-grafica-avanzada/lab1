@@ -29,7 +29,7 @@ namespace osc {
   using namespace gdt;
 
   // for this simple example, we have a single ray type
-  enum { PHOTON_RAY_TYPE=0, RADIANCE_RAY_TYPE, CAUSTIC_RAY_TYPE, SHADOW_RAY_TYPE, RAY_TYPE_COUNT };
+  enum { RADIANCE_RAY_TYPE=0, PHOTON_RAY_TYPE, CAUSTIC_RAY_TYPE, SHADOW_RAY_TYPE, RAY_TYPE_COUNT };
 
   struct TriangleMeshSBTData {
     vec3f  color;
@@ -74,15 +74,7 @@ namespace osc {
       vec3f origin, normal, intensity, photonPower;
     } light;
 
-    struct {
-        int prueba;
-    } funca;
-
     vec2f* halton;
-
-    int* solo;
-
-    int* ji;
 
     PhotonPrint* prePhotonMap;
     PhotonPrint* photonMap;

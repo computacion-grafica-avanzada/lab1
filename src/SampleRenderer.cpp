@@ -61,10 +61,6 @@ namespace osc {
 	{
 		initOptix();
 
-		// resize our cuda frame buffer
-		prePhotonMap.resize(NUM_PHOTON_SAMPLES * MAX_DEPTH * sizeof(PhotonPrint));
-		launchParams.prePhotonMap = (PhotonPrint*)prePhotonMap.d_pointer();
-
 		std::cout << "#osc: creating halton numbers ..." << std::endl;
 		std::vector<vec2f> haltons;
 		for (int i = 0; i < NUM_PHOTON_SAMPLES; i++) {
@@ -83,24 +79,8 @@ namespace osc {
 		vec3f cells = model->bounds.size() / vec3f(MAX_RADIUS);
 		cells = vec3f(ceilf(cells.x), ceilf(cells.y), ceilf(cells.z));
 
-		// hash
-		int totalCells = cells.x * cells.y * cells.z;
-		//std::vector<PhotonPrint> pmGrid(totalCells);
-		//pm.alloc_and_upload(pmGrid);
-		//launchParams.pm = (PhotonPrint*)pm.d_pointer();
-
-		//std::vector<int> pmGridCount(totalCells, 0);
-		//pmCount.alloc_and_upload(pmGridCount);
-		//launchParams.pmCount = (int*)pmCount.d_pointer();
-
 		launchParams.gridSize = cells;
 		launchParams.lowerBound = model->bounds.lower;
-
-		std::cout << "bounds " << model->bounds.size() << "divide " << model->bounds.size() / vec3f(MAX_RADIUS) << " " << ceilf(2.3f) << " "<< ceilf(2.9f) << endl;
-
-		std::vector<int> count = { 0 };
-		countAt.alloc_and_upload(count);
-		launchParams.solo = (int*)countAt.d_pointer();
 
 		std::cout << "#osc: creating light ..." << std::endl;
 		launchParams.light.origin = light.origin;
@@ -132,101 +112,89 @@ namespace osc {
 
 
 		std::cout << "#osc: building SBT ..." << std::endl;
-		buildSBT();
-		buildSBT2();
-    buildSBT3();
+		buildSBTrender();
+		buildSBTglobal();
+		buildSBTcaustics();
 
-		launchParamsBuffer.alloc(sizeof(launchParams));
-		launchParamsBuffer2.alloc(sizeof(launchParams));
-		launchParamsBuffer3.alloc(sizeof(launchParams));
+		launchParamsBufferRender.alloc(sizeof(launchParams));
+		launchParamsBufferCaustics.alloc(sizeof(launchParams));
 		std::cout << "#osc: context, module, pipeline, etc, all set up ..." << std::endl;
 
 		std::cout << GDT_TERMINAL_GREEN;
 		std::cout << "#osc: Optix 7 Sample fully set up" << std::endl;
 		std::cout << GDT_TERMINAL_DEFAULT;
 
-		if (!photonMapDone) {
-			launchParamsBuffer2.upload(&launchParams, 1);
-			launchParamsBuffer3.upload(&launchParams, 1);
+		std::cout << "#osc: starting photon pass" << std::endl;
+		photonPass();
+		std::cout << "#osc: finished photon pass" << std::endl;
+	}
 
-			OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
-				pipeline, stream,
-				/*! parameters and SBT */
-				launchParamsBuffer2.d_pointer(),
-				launchParamsBuffer2.sizeInBytes,
-				&sbt2,
-				/*! dimensions of the launch: */
-				NUM_PHOTON_SAMPLES,
-				1,
-				1
-			));
-      OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
-        pipeline, stream,
-        /*! parameters and SBT */
-        launchParamsBuffer3.d_pointer(),
-        launchParamsBuffer3.sizeInBytes,
-        &sbt3,
-        /*! dimensions of the launch: */
-        launchParams.frame.size.x,
-        launchParams.frame.size.y,
-        1
-      ));
+	void SampleRenderer::photonPass() 
+	{
+		// resize our cuda frame buffer
+		prePhotonMap.resize(NUM_PHOTON_SAMPLES * MAX_DEPTH * sizeof(PhotonPrint));
+		launchParams.prePhotonMap = (PhotonPrint*)prePhotonMap.d_pointer();
 
-			photonMapDone = true;
-			//CUDA_SYNC_CHECK();
-			haltonNumbers.free();
+		// set launchParams for launch
+		launchParamsBufferGlobal.alloc(sizeof(launchParams));
+		launchParamsBufferGlobal.upload(&launchParams, 1);
 
-			//pm.download(pmGrid.data(), pmGrid.size());
-			//pmCount.download(pmGridCount.data(), pmGridCount.size());
+		OPTIX_CHECK(optixLaunch(
+			pipeline, 
+			stream,
+			launchParamsBufferGlobal.d_pointer(),
+			launchParamsBufferGlobal.sizeInBytes,
+			&sbtGlobal,
+			NUM_PHOTON_SAMPLES,
+			1,
+			1
+		));
+		int totalCells = launchParams.gridSize.x * launchParams.gridSize.y * launchParams.gridSize.z;
 
-			// obtain photon traces
-			std::vector<PhotonPrint> photonsVec(NUM_PHOTON_SAMPLES*MAX_DEPTH);
-			downloadPhotons(photonsVec.data());
+		// obtain photon traces
+		std::vector<PhotonPrint> photonsData(NUM_PHOTON_SAMPLES * MAX_DEPTH);
+		prePhotonMap.download(photonsData.data(), photonsData.size());
+		prePhotonMap.free();
 
-			// filter empty slots
-			std::vector<PhotonPrint> photonM;
-			PhotonPrint nu = { vec3f(0),vec3f(0) };
+		// filter empty slots and populate grid
+		PhotonPrint nu = { vec3f(0),vec3f(0) };
 
-			remove_copy(photonsVec.begin(), photonsVec.end(), std::back_inserter(photonM), nu);
-			photonsVec.clear();
-			prePhotonMap.free();
-
-			photonMap.alloc_and_upload(photonM);
-			launchParams.photonMap = (PhotonPrint*)photonMap.d_pointer();
-			launchParams.mapSize = photonM.size();
-
-			std::vector<int> pmGridCount(totalCells, 0);
-
-			std::vector<std::vector<PhotonPrint>> multiple(totalCells);
-			for (auto ph : photonM) {
+		std::vector<int> pmGridCount(totalCells, 0);					// amount of photons per cell
+		std::vector<std::vector<PhotonPrint>> multiple(totalCells);		// list of photons per cell
+		for (auto ph : photonsData) {
+			if (ph != nu) {
 				vec3f local = ph.position - launchParams.lowerBound;
 				vec3f G = vec3f(
 					fmaxf(0.f, floor(local.x / MAX_RADIUS)),
 					fmaxf(0.f, floor(local.y / MAX_RADIUS)),
 					fmaxf(0.f, floor(local.z / MAX_RADIUS))
 				);
-				int hashId = G.x + G.y * cells.x + G.z * cells.x * cells.y;
+				int hashId = G.x + G.y * launchParams.gridSize.x + G.z * launchParams.gridSize.x * launchParams.gridSize.y;
 				multiple[hashId].push_back(ph);
 				pmGridCount[hashId] += 1;
 			}
-
-			std::vector<int> pmGridStarts(totalCells, 0);
-			std::vector<PhotonPrint> traces;
-			for (int i = 0; i < multiple.size(); i++) {
-				pmGridStarts[i] = traces.size();
-				for (auto trace : multiple[i]) {
-					traces.push_back(trace);
-				}
-			}
-			pmStarts.alloc_and_upload(pmGridStarts);
-			launchParams.pmStarts = (int*)pmStarts.d_pointer();
-			
-			pmCount.alloc_and_upload(pmGridCount);
-			launchParams.pmCount = (int*)pmCount.d_pointer();
-
-			pm.alloc_and_upload(traces);
-			launchParams.pm = (PhotonPrint*)pm.d_pointer();
 		}
+		photonsData.clear();
+
+		// linearilize photon map
+		std::vector<PhotonPrint> traces;
+		std::vector<int> pmGridStarts(totalCells, 0);
+		for (int i = 0; i < multiple.size(); i++) {
+			pmGridStarts[i] = traces.size();
+			for (auto trace : multiple[i]) {
+				traces.push_back(trace);
+			}
+		}
+
+		// upload buffers to GPU
+		pmStarts.alloc_and_upload(pmGridStarts);
+		launchParams.pmStarts = (int*)pmStarts.d_pointer();
+
+		pmCount.alloc_and_upload(pmGridCount);
+		launchParams.pmCount = (int*)pmCount.d_pointer();
+
+		pm.alloc_and_upload(traces);
+		launchParams.pm = (PhotonPrint*)pm.d_pointer();
 	}
 
 	void SampleRenderer::createTextures()
@@ -500,34 +468,39 @@ namespace osc {
 
 		char log[2048];
 		size_t sizeof_log = sizeof(log);
-		OPTIX_CHECK(optixModuleCreateFromPTX(optixContext,
+		OPTIX_CHECK(optixModuleCreateFromPTX(
+			optixContext,
 			&moduleCompileOptions,
 			&pipelineCompileOptions,
 			ptxCode.c_str(),
 			ptxCode.size(),
 			log, &sizeof_log,
-			&module
+			&renderModule
 		));
 
 		char log2[2048];
 		size_t sizeof_log2 = sizeof(log2);
 
-		OPTIX_CHECK(optixModuleCreateFromPTX(optixContext,
+		OPTIX_CHECK(optixModuleCreateFromPTX(
+			optixContext,
 			&moduleCompileOptions,
 			&pipelineCompileOptions,
 			ptxCodePhoton.c_str(),
 			ptxCodePhoton.size(),
 			log2, &sizeof_log2,
-			&photonModule
+			&globalModule
 		));
 
-		OPTIX_CHECK(optixModuleCreateFromPTX(optixContext,
+		char logCaustics[2048];
+		size_t sizeof_logCaustics = sizeof(logCaustics);
+		OPTIX_CHECK(optixModuleCreateFromPTX(
+			optixContext,
 			&moduleCompileOptions,
 			&pipelineCompileOptions,
 			ptxCodeCaustic.c_str(),
 			ptxCodeCaustic.size(),
-			log2, &sizeof_log2,
-			&causticModule
+			logCaustics, &sizeof_logCaustics,
+			&causticsModule
 		));
 		if (sizeof_log > 1) PRINT(log);
 	}
@@ -538,7 +511,7 @@ namespace osc {
 	void SampleRenderer::createRaygenPrograms()
 	{
 		// we do a single ray gen program in this example:
-		raygenPGs.resize(2);
+		raygenPGs.resize(RAY_TYPE_COUNT - 1);
 
 		char log[2048];
 		size_t sizeof_log = sizeof(log);
@@ -547,7 +520,7 @@ namespace osc {
 		OptixProgramGroupDesc pgDesc = {};
 		pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
 
-		pgDesc.raygen.module = module;
+		pgDesc.raygen.module = renderModule;
 		pgDesc.raygen.entryFunctionName = "__raygen__renderFrame";
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
 			&pgDesc,
@@ -557,7 +530,7 @@ namespace osc {
 			&raygenPGs[RADIANCE_RAY_TYPE]
 		));
 
-		pgDesc.raygen.module = photonModule;
+		pgDesc.raygen.module = globalModule;
 		pgDesc.raygen.entryFunctionName = "__raygen__renderPhoton";
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
 			&pgDesc,
@@ -567,7 +540,7 @@ namespace osc {
 			&raygenPGs[PHOTON_RAY_TYPE]
 		));
 
-		pgDesc.raygen.module = causticModule;
+		pgDesc.raygen.module = causticsModule;
 		pgDesc.raygen.entryFunctionName = "__raygen__renderCaustic";
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
 			&pgDesc,
@@ -594,24 +567,9 @@ namespace osc {
 		pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
 
 		// ------------------------------------------------------------------
-		// photon rays
-		// ------------------------------------------------------------------
-		pgDesc.miss.module = photonModule;
-		pgDesc.miss.entryFunctionName = "__miss__photon";
-
-		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
-			&pgDesc,
-			1,
-			&pgOptions,
-			log, &sizeof_log,
-			&missPGs[PHOTON_RAY_TYPE]
-		));
-		if (sizeof_log > 1) PRINT(log);
-
-		// ------------------------------------------------------------------
 		// radiance rays
 		// ------------------------------------------------------------------
-		pgDesc.miss.module = module;
+		pgDesc.miss.module = renderModule;
 		pgDesc.miss.entryFunctionName = "__miss__radiance";
 
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
@@ -624,9 +582,39 @@ namespace osc {
 		if (sizeof_log > 1) PRINT(log);
 
 		// ------------------------------------------------------------------
+		// shadow rays
+		// ------------------------------------------------------------------
+		pgDesc.miss.module = renderModule;
+		pgDesc.miss.entryFunctionName = "__miss__shadow";
+
+		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
+			&pgDesc,
+			1,
+			&pgOptions,
+			log, &sizeof_log,
+			&missPGs[SHADOW_RAY_TYPE]
+		));
+		if (sizeof_log > 1) PRINT(log);
+
+		// ------------------------------------------------------------------
+		// photon rays
+		// ------------------------------------------------------------------
+		pgDesc.miss.module = globalModule;
+		pgDesc.miss.entryFunctionName = "__miss__photon";
+
+		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
+			&pgDesc,
+			1,
+			&pgOptions,
+			log, &sizeof_log,
+			&missPGs[PHOTON_RAY_TYPE]
+		));
+		if (sizeof_log > 1) PRINT(log);
+
+		// ------------------------------------------------------------------
 		// caustic rays
 		// ------------------------------------------------------------------
-		pgDesc.miss.module = causticModule;
+		pgDesc.miss.module = causticsModule;
 		pgDesc.miss.entryFunctionName = "__miss__caustic";
 
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
@@ -638,19 +626,6 @@ namespace osc {
 		));
 		if (sizeof_log > 1) PRINT(log);
 
-		// ------------------------------------------------------------------
-		// shadow rays
-		// ------------------------------------------------------------------
-		pgDesc.miss.entryFunctionName = "__miss__shadow";
-
-		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
-			&pgDesc,
-			1,
-			&pgOptions,
-			log, &sizeof_log,
-			&missPGs[SHADOW_RAY_TYPE]
-		));
-		if (sizeof_log > 1) PRINT(log);
 	}
 
 	/*! does all setup for the hitgroup program(s) we are going to use */
@@ -666,32 +641,13 @@ namespace osc {
 		OptixProgramGroupDesc    pgDesc = {};
 		pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 
-
-		// -------------------------------------------------------
-		// photon rays
-		// -------------------------------------------------------
-		pgDesc.hitgroup.moduleCH = photonModule;
-		pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__photon";
-
-		pgDesc.hitgroup.moduleAH = photonModule;
-		pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__photon";
-
-		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
-			&pgDesc,
-			1,
-			&pgOptions,
-			log, &sizeof_log,
-			&hitgroupPGs[PHOTON_RAY_TYPE]
-		));
-		if (sizeof_log > 1) PRINT(log);
-
 		// -------------------------------------------------------
 		// radiance rays
 		// -------------------------------------------------------
-		pgDesc.hitgroup.moduleCH = module;
+		pgDesc.hitgroup.moduleCH = renderModule;
 		pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__radiance";
 
-		pgDesc.hitgroup.moduleAH = module;
+		pgDesc.hitgroup.moduleAH = renderModule;
 		pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__radiance";
 
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
@@ -704,29 +660,12 @@ namespace osc {
 		if (sizeof_log > 1) PRINT(log);
 
 		// -------------------------------------------------------
-		// caustic rays
+		// shadow rays
 		// -------------------------------------------------------
-		pgDesc.hitgroup.moduleCH = causticModule;
-		pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__caustic";
-
-		pgDesc.hitgroup.moduleAH = causticModule;
-		pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__caustic";
-
-		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
-			&pgDesc,
-			1,
-			&pgOptions,
-			log, &sizeof_log,
-			&hitgroupPGs[CAUSTIC_RAY_TYPE]
-		));
-		if (sizeof_log > 1) PRINT(log);
-
-		// -------------------------------------------------------
-		// shadow rays: technically we don't need this hit group,
-		// since we just use the miss shader to check if we were not
-		// in shadow
-		// -------------------------------------------------------
+		pgDesc.hitgroup.moduleCH = renderModule;
 		pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__shadow";
+		
+		pgDesc.hitgroup.moduleAH = renderModule;
 		pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__shadow";
 
 		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
@@ -735,6 +674,42 @@ namespace osc {
 			&pgOptions,
 			log, &sizeof_log,
 			&hitgroupPGs[SHADOW_RAY_TYPE]
+		));
+		if (sizeof_log > 1) PRINT(log);
+
+		// -------------------------------------------------------
+		// photon rays
+		// -------------------------------------------------------
+		pgDesc.hitgroup.moduleCH = globalModule;
+		pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__photon";
+
+		pgDesc.hitgroup.moduleAH = globalModule;
+		pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__photon";
+
+		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
+			&pgDesc,
+			1,
+			&pgOptions,
+			log, &sizeof_log,
+			&hitgroupPGs[PHOTON_RAY_TYPE]
+		));
+		if (sizeof_log > 1) PRINT(log);
+
+		// -------------------------------------------------------
+		// caustic rays
+		// -------------------------------------------------------
+		pgDesc.hitgroup.moduleCH = causticsModule;
+		pgDesc.hitgroup.entryFunctionNameCH = "__closesthit__caustic";
+
+		pgDesc.hitgroup.moduleAH = causticsModule;
+		pgDesc.hitgroup.entryFunctionNameAH = "__anyhit__caustic";
+
+		OPTIX_CHECK(optixProgramGroupCreate(optixContext,
+			&pgDesc,
+			1,
+			&pgOptions,
+			log, &sizeof_log,
+			&hitgroupPGs[CAUSTIC_RAY_TYPE]
 		));
 		if (sizeof_log > 1) PRINT(log);
 	}
@@ -784,7 +759,7 @@ namespace osc {
 
 
 	/*! constructs the shader binding table */
-	void SampleRenderer::buildSBT()
+	void SampleRenderer::buildSBTrender()
 	{
 		// ------------------------------------------------------------------
 		// build raygen records
@@ -796,8 +771,8 @@ namespace osc {
 			rec.data = nullptr; /* for now ... */
 			raygenRecords.push_back(rec);
 		//}
-		raygenRecordsBuffer.alloc_and_upload(raygenRecords);
-		sbt.raygenRecord = raygenRecordsBuffer.d_pointer();
+		raygenRecordsBufferRender.alloc_and_upload(raygenRecords);
+		sbtRender.raygenRecord = raygenRecordsBufferRender.d_pointer();
 
 		// ------------------------------------------------------------------
 		// build miss records
@@ -809,10 +784,10 @@ namespace osc {
 			rec.data = nullptr; /* for now ... */
 			missRecords.push_back(rec);
 		}
-		missRecordsBuffer.alloc_and_upload(missRecords);
-		sbt.missRecordBase = missRecordsBuffer.d_pointer();
-		sbt.missRecordStrideInBytes = sizeof(MissRecord);
-		sbt.missRecordCount = (int)missRecords.size();
+		missRecordsBufferRender.alloc_and_upload(missRecords);
+		sbtRender.missRecordBase = missRecordsBufferRender.d_pointer();
+		sbtRender.missRecordStrideInBytes = sizeof(MissRecord);
+		sbtRender.missRecordCount = (int)missRecords.size();
 
 		// ------------------------------------------------------------------
 		// build hitgroup records
@@ -844,14 +819,14 @@ namespace osc {
 				hitgroupRecords.push_back(rec);
 			}
 		}
-		hitgroupRecordsBuffer.alloc_and_upload(hitgroupRecords);
-		sbt.hitgroupRecordBase = hitgroupRecordsBuffer.d_pointer();
-		sbt.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
-		sbt.hitgroupRecordCount = (int)hitgroupRecords.size();
+		hitgroupRecordsBufferRender.alloc_and_upload(hitgroupRecords);
+		sbtRender.hitgroupRecordBase = hitgroupRecordsBufferRender.d_pointer();
+		sbtRender.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
+		sbtRender.hitgroupRecordCount = (int)hitgroupRecords.size();
 	}
 
 	/*! constructs the shader binding table */
-	void SampleRenderer::buildSBT2()
+	void SampleRenderer::buildSBTglobal()
 	{
 		// ------------------------------------------------------------------
 		// build raygen records
@@ -863,8 +838,8 @@ namespace osc {
 			rec.data = nullptr; /* for now ... */
 			raygenRecords.push_back(rec);
 		//}
-		raygenRecordsBuffer2.alloc_and_upload(raygenRecords);
-		sbt2.raygenRecord = raygenRecordsBuffer2.d_pointer();
+		raygenRecordsBufferGlobal.alloc_and_upload(raygenRecords);
+		sbtGlobal.raygenRecord = raygenRecordsBufferGlobal.d_pointer();
 
 		// ------------------------------------------------------------------
 		// build miss records
@@ -876,10 +851,10 @@ namespace osc {
 			rec.data = nullptr; /* for now ... */
 			missRecords.push_back(rec);
 		}
-		missRecordsBuffer2.alloc_and_upload(missRecords);
-		sbt2.missRecordBase = missRecordsBuffer2.d_pointer();
-		sbt2.missRecordStrideInBytes = sizeof(MissRecord);
-		sbt2.missRecordCount = (int)missRecords.size();
+		missRecordsBufferGlobal.alloc_and_upload(missRecords);
+		sbtGlobal.missRecordBase = missRecordsBufferGlobal.d_pointer();
+		sbtGlobal.missRecordStrideInBytes = sizeof(MissRecord);
+		sbtGlobal.missRecordCount = (int)missRecords.size();
 
 		// ------------------------------------------------------------------
 		// build hitgroup records
@@ -911,14 +886,14 @@ namespace osc {
 				hitgroupRecords.push_back(rec);
 			}
 		}
-		hitgroupRecordsBuffer2.alloc_and_upload(hitgroupRecords);
-		sbt2.hitgroupRecordBase = hitgroupRecordsBuffer2.d_pointer();
-		sbt2.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
-		sbt2.hitgroupRecordCount = (int)hitgroupRecords.size();
+		hitgroupRecordsBufferGlobal.alloc_and_upload(hitgroupRecords);
+		sbtGlobal.hitgroupRecordBase = hitgroupRecordsBufferGlobal.d_pointer();
+		sbtGlobal.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
+		sbtGlobal.hitgroupRecordCount = (int)hitgroupRecords.size();
 	}
 
 /*! constructs the shader binding table */
-	void SampleRenderer::buildSBT3()
+	void SampleRenderer::buildSBTcaustics()
 	{
 		// ------------------------------------------------------------------
 		// build raygen records
@@ -930,8 +905,8 @@ namespace osc {
 			rec.data = nullptr; /* for now ... */
 			raygenRecords.push_back(rec);
 		//}
-		raygenRecordsBuffer3.alloc_and_upload(raygenRecords);
-		sbt3.raygenRecord = raygenRecordsBuffer3.d_pointer();
+		raygenRecordsBufferCaustics.alloc_and_upload(raygenRecords);
+		sbtCaustics.raygenRecord = raygenRecordsBufferCaustics.d_pointer();
 
 		// ------------------------------------------------------------------
 		// build miss records
@@ -943,10 +918,10 @@ namespace osc {
 			rec.data = nullptr; /* for now ... */
 			missRecords.push_back(rec);
 		}
-		missRecordsBuffer3.alloc_and_upload(missRecords);
-		sbt3.missRecordBase = missRecordsBuffer3.d_pointer();
-		sbt3.missRecordStrideInBytes = sizeof(MissRecord);
-		sbt3.missRecordCount = (int)missRecords.size();
+		missRecordsBufferCaustics.alloc_and_upload(missRecords);
+		sbtCaustics.missRecordBase = missRecordsBufferCaustics.d_pointer();
+		sbtCaustics.missRecordStrideInBytes = sizeof(MissRecord);
+		sbtCaustics.missRecordCount = (int)missRecords.size();
 
 		// ------------------------------------------------------------------
 		// build hitgroup records
@@ -978,10 +953,10 @@ namespace osc {
 				hitgroupRecords.push_back(rec);
 			}
 		}
-		hitgroupRecordsBuffer3.alloc_and_upload(hitgroupRecords);
-		sbt3.hitgroupRecordBase = hitgroupRecordsBuffer3.d_pointer();
-		sbt3.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
-		sbt3.hitgroupRecordCount = (int)hitgroupRecords.size();
+		hitgroupRecordsBufferCaustics.alloc_and_upload(hitgroupRecords);
+		sbtCaustics.hitgroupRecordBase = hitgroupRecordsBufferCaustics.d_pointer();
+		sbtCaustics.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
+		sbtCaustics.hitgroupRecordCount = (int)hitgroupRecords.size();
 	}
 
 
@@ -992,26 +967,20 @@ namespace osc {
 		// already done:
 		if (launchParams.frame.size.x == 0) return;
 
-		launchParamsBuffer.upload(&launchParams, 1);
+		launchParamsBufferRender.upload(&launchParams, 1);
 		launchParams.frame.accumID++;
 
 		OPTIX_CHECK(optixLaunch(/*! pipeline we're launching launch: */
 			pipeline, stream,
 			/*! parameters and SBT */
-			launchParamsBuffer.d_pointer(),
-			launchParamsBuffer.sizeInBytes,
-			&sbt,
+			launchParamsBufferRender.d_pointer(),
+			launchParamsBufferRender.sizeInBytes,
+			&sbtRender,
 			/*! dimensions of the launch: */
 			launchParams.frame.size.x,
 			launchParams.frame.size.y,
 			1
 		));
-		int full;
-		countAt.download(&full, 1);
-		//cout << "count" << full << endl;
-
-		std::vector<int> count = { 0 };
-		countAt.upload(count.data(), count.size());
 
 		// sync - make sure the frame is rendered before we download and
 		// display (obviously, for a high-performance application you
