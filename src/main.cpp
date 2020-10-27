@@ -116,7 +116,7 @@ namespace osc {
 	extern "C" int main(int ac, char** av)
 	{
 		try {
-			Model* model = loadOBJ("../../models/CornellBox-Empty-RG.obj");
+			Model* model = loadOBJ("../../models/custom_cube.obj");
 
 			Camera camera = {
 				/*from*/vec3f(0.f, 0.f, 5.f),
