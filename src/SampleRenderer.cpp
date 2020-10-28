@@ -64,9 +64,9 @@ namespace osc
 
 		std::cout << "#osc: creating halton numbers ..." << std::endl;
 		std::vector<vec2f> haltons;
-		for (int i = 0; i < NUM_PHOTON_SAMPLES; i++)
+		for (int i = 0; i < launchParams.numPhotonSamples; i++)
 		{
-			if (NUM_PHOTON_SAMPLES > 1000000)
+			if (launchParams.numPhotonSamples > 1000000)
 			{
 				double* numeros = halton(i + 181472, 2);
 				haltons.push_back(vec2f((float)numeros[0], (float)numeros[1]));
@@ -80,7 +80,7 @@ namespace osc
 		launchParams.halton = (vec2f*)haltonNumbers.d_pointer();
 
 		std::cout << "#osc: setting hash grid ..." << std::endl;
-		vec3f cells = model->bounds.size() / vec3f(MAX_RADIUS);
+		vec3f cells = model->bounds.size() / vec3f(launchParams.maxRadius);
 		vec3i gridSize((int)ceilf(cells.x), (int)ceilf(cells.y), (int)ceilf(cells.z));
 
 		launchParams.gridSize = gridSize;
@@ -91,6 +91,7 @@ namespace osc
 		launchParams.light.normal = light.normal;
 		launchParams.light.intensity = light.power;
 		launchParams.light.photonPower = light.power / light.numberPhotons;
+		//launchParams.light.photonPower *= 10;
 
 		std::cout << launchParams.light.photonPower << std::endl;
 
@@ -175,7 +176,7 @@ namespace osc
 	void SampleRenderer::photonPass()
 	{
 		// resize our cuda frame buffer
-		prePhotonMap.resize(NUM_PHOTON_SAMPLES * MAX_DEPTH * sizeof(PhotonPrint));
+		prePhotonMap.resize(launchParams.numPhotonSamples * launchParams.maxDepth * sizeof(PhotonPrint));
 		launchParams.prePhotonMap = (PhotonPrint*)prePhotonMap.d_pointer();
 
 		// set launchParams for launch
@@ -188,13 +189,13 @@ namespace osc
 			launchParamsBufferGlobal.d_pointer(),
 			launchParamsBufferGlobal.sizeInBytes,
 			&sbtGlobal,
-			NUM_PHOTON_SAMPLES,
+			launchParams.numPhotonSamples,
 			1,
 			1));
 		int totalCells = launchParams.gridSize.x * launchParams.gridSize.y * launchParams.gridSize.z;
 
 		// obtain photon traces
-		std::vector<PhotonPrint> photonsData(NUM_PHOTON_SAMPLES * MAX_DEPTH);
+		std::vector<PhotonPrint> photonsData(launchParams.numPhotonSamples * launchParams.maxDepth);
 		prePhotonMap.download(photonsData.data(), photonsData.size());
 		prePhotonMap.free();
 
@@ -209,9 +210,9 @@ namespace osc
 			{
 				vec3f local = ph.position - launchParams.lowerBound;
 				vec3i G(
-					max(0, (int)(local.x / MAX_RADIUS)),
-					max(0, (int)(local.y / MAX_RADIUS)),
-					max(0, (int)(local.z / MAX_RADIUS)));
+					max(0, (int)(local.x / launchParams.maxRadius)),
+					max(0, (int)(local.y / launchParams.maxRadius)),
+					max(0, (int)(local.z / launchParams.maxRadius)));
 				int hashId = G.x + G.y * launchParams.gridSize.x + G.z * launchParams.gridSize.x * launchParams.gridSize.y;
 				multiple[hashId].push_back(ph);
 				pmGridCount[hashId] += 1;
@@ -1047,6 +1048,13 @@ passed to trace. */
 			launchParams.camera.direction));
 	}
 
+	void SampleRenderer::setParams(int numPhotonSamples, int maxDepth, float radius)
+	{
+		launchParams.numPhotonSamples = numPhotonSamples;
+		launchParams.maxDepth = maxDepth;
+		launchParams.maxRadius = radius;
+	}
+
 	/*! resize frame buffer to given resolution */
 	void SampleRenderer::resize(const vec2i& newSize)
 	{
@@ -1075,7 +1083,7 @@ passed to trace. */
 
 	void SampleRenderer::downloadPhotons(PhotonPrint* h_pixels)
 	{
-		prePhotonMap.download(h_pixels, NUM_PHOTON_SAMPLES * MAX_DEPTH);
+		prePhotonMap.download(h_pixels, launchParams.numPhotonSamples * launchParams.maxDepth);
 	}
 
 	/*! renders only the photons for the next frame */

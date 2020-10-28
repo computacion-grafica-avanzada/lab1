@@ -88,7 +88,7 @@ namespace osc {
 		float Pd = max(sbtData.color * prd.power) / max(prd.power);
 		float Ps = max(sbtData.specular * prd.power) / max(prd.power);
 		float Pt = max(sbtData.transmission * prd.power) / max(prd.power);
-		
+
 		prd.depth += 1;
 		coin = prd.random();
 		if (coin <= Pd) {
@@ -103,7 +103,7 @@ namespace osc {
 		}
 		else if (coin <= Pd + Ps) {
 			// specular
-			if (prd.depth <= MAX_DEPTH) {
+			if (prd.depth <= optixLaunchParams.maxDepth) {
 				uint32_t u0, u1;
 				packPointer(&prd, u0, u1);
 
@@ -132,7 +132,7 @@ namespace osc {
 		}
 		else if (coin <= Pd + Ps + Pt) {
 			// transmission
-			if (prd.depth <= MAX_DEPTH) {
+			if (prd.depth <= optixLaunchParams.maxDepth) {
 				uint32_t u0, u1;
 				packPointer(&prd, u0, u1);
 				printf("hola2\n");
@@ -208,7 +208,7 @@ namespace osc {
 
 		uint32_t u0, u1;
 		packPointer(&prd, u0, u1);
-		
+
 		//Ncell = 10000 % cantidad de fotones lanzados por celda
 		if (optixLaunchParams.projectionMap[ix + NC * iy] == 1) { // hit a specular
 			float xmin = -1 + 2 * (ix - 1) / NC;
@@ -220,11 +220,11 @@ namespace osc {
 			float xmax2 = xmax * xmax;
 			float ymin2 = ymin * ymin;
 			float ymax2 = ymax * ymax;
-				printf("entra\n");
+			printf("entra\n");
 			if ((xmin2 + ymin2) < 1 || (xmin2 + ymax2) < 1 || (xmax2 + ymin2) < 1 || (xmax2 + ymax2) < 1) {
 				//% si alguna de las 4 esquinas de la celda está dentro del círculo de radio 1
 				for (int k = 0; k < NUM_CAUSTIC_PER_CELL; k++) {
-					float x = xmin + 2 * prd.random() / NC; 
+					float x = xmin + 2 * prd.random() / NC;
 					float y = ymin + 2 * prd.random() / NC;
 					int z2 = 1 - x * x - y * y;
 					z2 = z2 > 0.0f ? sqrtf(z2) : 0.0f;

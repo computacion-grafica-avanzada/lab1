@@ -94,7 +94,7 @@ namespace osc {
 		//);
 
 
-		int rand_index = prd.random() * NUM_PHOTON_SAMPLES;
+		int rand_index = prd.random() * optixLaunchParams.numPhotonSamples;
 		//int rand_index = (ix * prd.depth + 1) % NUM_PHOTON_SAMPLES;
 		float coin = optixLaunchParams.halton[rand_index].x;
 		//float coin = optixLaunchParams.halton[ix].x;
@@ -116,8 +116,8 @@ namespace osc {
 			if (prd.depth > 1) {
 				pp.position = hitPoint;
 				pp.power = prd.power;
-				optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 2] = pp;
-				
+				optixLaunchParams.prePhotonMap[ix * optixLaunchParams.maxDepth + prd.depth - 2] = pp;
+
 				//int hashId = hash(hitPoint, optixLaunchParams.gridSize, optixLaunchParams.lowerBound);
 				//optixLaunchParams.pm[hashId] = pp;
 				//atomicAdd(&optixLaunchParams.pmCount[hashId], 1);
@@ -130,7 +130,7 @@ namespace osc {
 			//	optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 1] = pp;
 			//}
 
-			if (prd.depth <= MAX_DEPTH) {
+			if (prd.depth <= optixLaunchParams.maxDepth) {
 				uint32_t u0, u1;
 				packPointer(&prd, u0, u1);
 
@@ -168,12 +168,12 @@ namespace osc {
 		else if (coin <= Pd + Ps) {
 			// specular
 
-			if (prd.depth <= MAX_DEPTH) {
+			if (prd.depth <= optixLaunchParams.maxDepth) {
 
 				if (prd.depth == 1) {
 					int x = 1 + NC * (1 + rayDir.x) / 2;
 					int y = 1 + NC * (1 + rayDir.y) / 2;
-					optixLaunchParams.projectionMap[x+NC*y] = 1;
+					optixLaunchParams.projectionMap[x + NC * y] = 1;
 				}
 
 				uint32_t u0, u1;
@@ -203,7 +203,7 @@ namespace osc {
 		else if (coin <= Pd + Ps + Pt) {
 			// transmission
 
-			if (prd.depth <= MAX_DEPTH) {
+			if (prd.depth <= optixLaunchParams.maxDepth) {
 
 				if (prd.depth == 1) {
 					int x = 1 + NC * (1 + rayDir.x) / 2;
@@ -221,7 +221,8 @@ namespace osc {
 					nit = prd.currentIor / sbtData.ior;
 					cosi = -cosi;
 					prd.currentIor = sbtData.ior;
-				} else { // ray comes from inside surface
+				}
+				else { // ray comes from inside surface
 					nit = sbtData.ior;
 				}
 
@@ -235,18 +236,18 @@ namespace osc {
 					prd.power = (prd.power * sbtData.transmission) / Pt;
 
 					optixTrace(
-					optixLaunchParams.traversable,
-					hitPoint,
-					refractionDir,
-					1e-4f,							// tmin
-					1e20f,							// tmax
-					0.0f,							// rayTime
-					OptixVisibilityMask(255),
-					OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
-					PHOTON_RAY_TYPE,				// SBT offset
-					RAY_TYPE_COUNT,					// SBT stride
-					PHOTON_RAY_TYPE,				// missSBTIndex
-					u0, u1
+						optixLaunchParams.traversable,
+						hitPoint,
+						refractionDir,
+						1e-4f,							// tmin
+						1e20f,							// tmax
+						0.0f,							// rayTime
+						OptixVisibilityMask(255),
+						OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
+						PHOTON_RAY_TYPE,				// SBT offset
+						RAY_TYPE_COUNT,					// SBT stride
+						PHOTON_RAY_TYPE,				// missSBTIndex
+						u0, u1
 					);
 				}
 			}
@@ -257,7 +258,7 @@ namespace osc {
 				PhotonPrint pp;
 				pp.position = hitPoint;
 				pp.power = prd.power;
-				optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 2] = pp;
+				optixLaunchParams.prePhotonMap[ix * optixLaunchParams.maxDepth + prd.depth - 2] = pp;
 
 				//int hashId = hash(hitPoint, optixLaunchParams.gridSize, optixLaunchParams.lowerBound);
 				//optixLaunchParams.pm[hashId] = pp;

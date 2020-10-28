@@ -52,15 +52,15 @@ namespace osc {
 		const uint32_t u1 = optixGetPayload_1();
 		return reinterpret_cast<T*>(unpackPointer(u0, u1));
 	}
-	
-	static __device__ __inline__ 
-		vec3f reflect(vec3f v, vec3f n) 
+
+	static __device__ __inline__
+		vec3f reflect(vec3f v, vec3f n)
 	{
-			return v - ((dot(v, n) / dot(n, n)) * n) * 2;
+		return v - ((dot(v, n) / dot(n, n)) * n) * 2;
 	}
 
 	// sample hemisphere with cosine density
-	static __device__ __inline__ 
+	static __device__ __inline__
 		void sampleUnitHemisphere(const vec2f& sample, const vec3f& U, const vec3f& V, const vec3f& W, vec3f& point)
 	{
 		// https://github.com/nvpro-samples/optix_advanced_samples/blob/21465ae85c47f3c57371c77fd2aa3bac4adabcd4/src/optixProgressivePhotonMap/ppm_ppass.cu
@@ -75,7 +75,7 @@ namespace osc {
 	}
 
 	// Create ONB from normal.  Resulting W is parallel to normal
-	static __device__ __inline__ 
+	static __device__ __inline__
 		void create_onb(const vec3f& n, vec3f& U, vec3f& V, vec3f& W)
 	{
 		// https://github.com/nvpro-samples/optix_advanced_samples/blob/e4b6e03f5ad1239403d7990291604cd3eb12d814/src/device_include/helpers.h
@@ -89,8 +89,8 @@ namespace osc {
 		V = cross(W, U);
 	}
 
-	static __device__ __inline__ 
-		float max(const vec3f& vec) 
+	static __device__ __inline__
+		float max(const vec3f& vec)
 	{
 		if ((vec.x > vec.y) && (vec.x > vec.z))
 			return vec.x;
@@ -102,7 +102,7 @@ namespace osc {
 	}
 
 	static __device__ __inline__
-		int hash(vec3f position, vec3i gridSize, vec3f lowerBound) 
+		int hash(vec3f position, vec3i gridSize, vec3f lowerBound, float radius)
 	{
 		vec3f local = position - lowerBound;
 		//vec3f G(
@@ -111,9 +111,9 @@ namespace osc {
 		//	local.z > 0.f ? floor(local.z / MAX_RADIUS) : 0.f
 		//);
 		vec3f G(
-			fmaxf(0.f, floor(local.x / MAX_RADIUS)),
-			fmaxf(0.f, floor(local.y / MAX_RADIUS)),
-			fmaxf(0.f, floor(local.z / MAX_RADIUS))
+			fmaxf(0.f, floor(local.x / radius)),
+			fmaxf(0.f, floor(local.y / radius)),
+			fmaxf(0.f, floor(local.z / radius))
 		);
 		return G.x + G.y * gridSize.x + G.z * gridSize.x * gridSize.y;
 	}

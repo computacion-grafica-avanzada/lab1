@@ -92,6 +92,10 @@ namespace osc
 			vec3f origin, normal, intensity, photonPower;
 		} light;
 
+		int numPhotonSamples = NUM_PHOTON_SAMPLES;
+		int maxDepth = MAX_DEPTH;
+		float maxRadius = MAX_RADIUS;
+
 		vec2f* halton;
 
 		PhotonPrint* prePhotonMap;

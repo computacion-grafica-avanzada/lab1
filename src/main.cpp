@@ -153,13 +153,98 @@ namespace osc {
 		std::vector<uint32_t> pixels;
 	};
 
+	float readFloat(FILE* file)
+	{
+		string number_s;
+		char character;
+
+		character = fgetc(file);
+		while (character != ' ' && character != '\n' && character != EOF)
+		{
+			number_s.push_back(character);
+			character = fgetc(file);
+		}
+
+		return atof(number_s.c_str());
+	}
+
+	int readInt(FILE* file)
+	{
+		string number_s;
+		char character;
+
+		character = fgetc(file);
+		while (character != ' ' && character != '\n' && character != EOF)
+		{
+			number_s.push_back(character);
+			character = fgetc(file);
+		}
+
+		return atoll(number_s.c_str());
+	}
+
+	void loadParams(string& objFileName, vec3f& lightPos, vec3f& lightDir, vec3f& lightPower, int& numPhotonSamples, int& maxDepth, float& radius)
+	{
+		char character;
+		FILE* file;
+		file = fopen("../../params.txt", "r");
+
+		if (file) {
+			// Read file name
+			while ((character = fgetc(file)) != '\n' && character != EOF)
+			{
+				objFileName.push_back(character);
+			}
+
+			// Read light pos
+			lightPos.x = readFloat(file);
+			lightPos.y = readFloat(file);
+			lightPos.z = readFloat(file);
+
+			// Read light dir
+			lightDir.x = readFloat(file);
+			lightDir.y = readFloat(file);
+			lightDir.z = readFloat(file);
+
+			// Read light power
+			lightPower.x = readFloat(file);
+			lightPower.y = readFloat(file);
+			lightPower.z = readFloat(file);
+
+			// Read number of photons
+			numPhotonSamples = readInt(file);
+
+			// Read max depth
+			maxDepth = readInt(file);
+
+			// Read radius
+			radius = readFloat(file);
+
+			fclose(file);
+		}
+		else
+		{
+			printf("ERROR al intentar abrir archivo de parametros!");
+		}
+	}
+
 
 	/*! main entry point to this example - initially optix, print hello
 	  world, then exit */
 	extern "C" int main(int ac, char** av)
 	{
 		try {
-			Model* model = loadOBJ("../../models/custom_cube.obj");
+			string objFileName;
+			vec3f lightPos;
+			vec3f lightDir;
+			vec3f lightPower;
+			int numPhotonSamples;
+			int maxDepth;
+			float radius;
+
+			loadParams(objFileName, lightPos, lightDir, lightPower, numPhotonSamples, maxDepth, radius);
+
+			Model* model = loadOBJ(objFileName);
 
 			Camera camera = {
 				/*from*/vec3f(0.f, 1.f, 5.f),
@@ -173,17 +258,15 @@ namespace osc {
 			//                    /* edge 2 */ vec3f(.23f,0,.16f),
 			//                    /* power */  vec3f(3.f) };
 
-			// TODO set number of photons correwctly
-			PointLight light = { NUM_PHOTON_SAMPLES, vec3f(0,1.98,0), vec3f(0,-1,0), vec3f(2.0) };
-			//PointLight light = { 30, vec3f(0,1.98,0), vec3f(0,-1,0), vec3f(100.f) };
+			PointLight light = { numPhotonSamples, lightPos, lightDir, lightPower };
 
 			// something approximating the scale of the world, so the
 			// camera knows how much to move for any given user interaction:
 			const float worldScale = length(model->bounds.span());
 
 			SampleWindow* window = new SampleWindow("Optix 7 Course Example", model, camera, light, worldScale);
+			window->sample.setParams(numPhotonSamples, maxDepth, radius);
 			window->run();
-
 		}
 		catch (std::runtime_error& e) {
 			std::cout << GDT_TERMINAL_RED << "FATAL ERROR: " << e.what()

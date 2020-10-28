@@ -118,7 +118,7 @@ namespace osc {
 
 	static __device__ vec3f nearest_photons_hash_list(vec3f point, float radius_f) {
 		vec3f totalPower(0.f);
-		vec3f radius(MAX_RADIUS);
+		vec3f radius(optixLaunchParams.maxRadius);
 		float sq_r = radius_f * radius_f;
 
 		vec3f local = point - optixLaunchParams.lowerBound;
@@ -233,7 +233,7 @@ namespace osc {
 			}
 			else
 			{
-				radius = MAX_RADIUS;
+				radius = optixLaunchParams.maxRadius;
 			}
 			vec3f totalPower = nearest_photons_hash_list(hitPoint, radius);
 			vec3f brdf = sbtData.color / M_PI;
@@ -311,7 +311,7 @@ namespace osc {
 		}
 
 		///*Regresar si la prof. es excesiva */
-		if (prd.depth < MAX_DEPTH) {
+		if (prd.depth < optixLaunchParams.maxDepth) {
 			prd.depth += 1;
 
 			if (!optixLaunchParams.onlyPhotons)

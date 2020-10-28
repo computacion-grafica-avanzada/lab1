@@ -61,6 +61,9 @@ namespace osc {
 		/*! set camera to render with */
 		void setCamera(const Camera& camera);
 
+		/*! set the params to render with */
+		void setParams(int numPhotonSamples, int maxDepth, float radius);
+
 		/*! perform the first pass of photon mapping */
 		void photonPass();
 		void causticsPass();
