@@ -110,19 +110,24 @@ namespace osc {
 				tm* ltm = new tm();
 				localtime_s(ltm, &now);
 				std::stringstream ss, ssBmp;
-				ss << "../../results/" << 1 + ltm->tm_mon << "_" << ltm->tm_mday << " " << ltm->tm_hour << "_" << ltm->tm_min << "_" << ltm->tm_sec;
-				ssBmp << ss.str() << ".png";
+
+				if (drawLoops == 0)
+				{
+					ss << "../../results/PhotonMap" << 1 + ltm->tm_mon << "_" << ltm->tm_mday << " " << ltm->tm_hour << "_" << ltm->tm_min << "_" << ltm->tm_sec;
+					ssBmp << ss.str() << ".png";
+				}
+				else
+				{
+					ss << "../../results/Image" << 1 + ltm->tm_mon << "_" << ltm->tm_mday << " " << ltm->tm_hour << "_" << ltm->tm_min << "_" << ltm->tm_sec;
+					ssBmp << ss.str() << ".png";
+				}
 
 				std::vector<uint32_t> pixels_r;
 
-				for (int i = pixels.size() - 1; i >= 0; i--)
-				{
-					pixels_r.push_back(pixels[i]);
-				}
+				stbi_flip_vertically_on_write(1);
 
-				//const std::string fileName = "osc_example2.png";
 				stbi_write_png(ssBmp.str().c_str(), fbSize.x, fbSize.y, 4,
-					pixels_r.data(), fbSize.x * sizeof(uint32_t));
+					pixels.data(), fbSize.x * sizeof(uint32_t));
 			}
 			drawLoops++;
 		}
@@ -146,7 +151,7 @@ namespace osc {
 	extern "C" int main(int ac, char** av)
 	{
 		try {
-			Model* model = loadOBJ("../../models/CornellBox-Empty-RG.obj");
+			Model* model = loadOBJ("../../models/custom_cube.obj");
 
 			Camera camera = {
 				/*from*/vec3f(0.f, 1.f, 5.f),
@@ -161,7 +166,7 @@ namespace osc {
 			//                    /* power */  vec3f(3.f) };
 
 			// TODO set number of photons correwctly
-			PointLight light = { NUM_PHOTON_SAMPLES, vec3f(0,1.98,0), vec3f(0,-1,0), vec3f(2.f) };
+			PointLight light = { NUM_PHOTON_SAMPLES, vec3f(0,1.98,0), vec3f(0,-1,0), vec3f(2.0) };
 			//PointLight light = { 30, vec3f(0,1.98,0), vec3f(0,-1,0), vec3f(100.f) };
 
 			// something approximating the scale of the world, so the

@@ -116,10 +116,10 @@ namespace osc {
 	//	return totalPower;
 	//}
 
-	static __device__ vec3f nearest_photons_hash_list(vec3f point) {
+	static __device__ vec3f nearest_photons_hash_list(vec3f point, float radius_f) {
 		vec3f totalPower(0.f);
 		vec3f radius(MAX_RADIUS);
-		float sq_r = MAX_RADIUS * MAX_RADIUS;
+		float sq_r = radius_f * radius_f;
 
 		vec3f local = point - optixLaunchParams.lowerBound;
 		// find min 3D grid index
@@ -130,7 +130,7 @@ namespace osc {
 			maximo(0, (int)minPoint.z)
 		);
 		// find max 3D grid index
-		vec3f maxPoint = (local + radius) / radius;		
+		vec3f maxPoint = (local + radius) / radius;
 		vec3i to(
 			minimo(optixLaunchParams.gridSize.x - 1, (int)maxPoint.x),
 			minimo(optixLaunchParams.gridSize.y - 1, (int)maxPoint.y),
@@ -147,10 +147,10 @@ namespace osc {
 					);
 					int start = optixLaunchParams.pmStarts[hashId];
 					for (int i = 0; i < optixLaunchParams.pmCount[hashId]; i++) {
-						vec3f dir = optixLaunchParams.pm[start+i].position - point;
+						vec3f dir = optixLaunchParams.pm[start + i].position - point;
 						float sq_dist = dot(dir, dir);
 						if (sq_dist <= sq_r)
-							totalPower += optixLaunchParams.pm[start+i].power;
+							totalPower += optixLaunchParams.pm[start + i].power;
 					}
 				}
 			}
@@ -235,12 +235,19 @@ namespace osc {
 			{
 				radius = MAX_RADIUS;
 			}
-			vec3f totalPower = nearest_photons_hash_list(hitPoint);
+			vec3f totalPower = nearest_photons_hash_list(hitPoint, radius);
 			vec3f brdf = sbtData.color / M_PI;
 			//printf("%f %f %f \n", totalPower.x, totalPower.y, totalPower.z);
 			float delta_a = M_PI * radius * radius;
-			// sin filtros
-			pixelColor += (totalPower * brdf) / delta_a;
+			if (optixLaunchParams.onlyPhotons)
+			{
+				pixelColor += totalPower / delta_a;
+			}
+			else
+			{
+				// sin filtros
+				pixelColor += (totalPower * brdf) / delta_a;
+			}
 
 			//pixelColor += totalPower;
 
@@ -307,71 +314,65 @@ namespace osc {
 		if (prd.depth < MAX_DEPTH) {
 			prd.depth += 1;
 
-			//// reflection component
-			if (sbtData.specular != vec3f(0)) {
-				vec3f reflectDir = reflect(rayDir, Ng); //rayo en la direccion de reflexion desde punto;
+			if (!optixLaunchParams.onlyPhotons)
+			{
+				//// reflection component
+				if (sbtData.specular != vec3f(0)) {
+					vec3f reflectDir = reflect(rayDir, Ng); //rayo en la direccion de reflexion desde punto;
 
-				PRD reflection;
-				reflection.pixelColor = vec3f(0.f);
-				reflection.depth = prd.depth;
-				reflection.currentIor = prd.currentIor;
+					PRD reflection;
+					reflection.pixelColor = vec3f(0.f);
+					reflection.depth = prd.depth;
+					reflection.currentIor = prd.currentIor;
 
-				uint32_t u0, u1;
-				packPointer(&reflection, u0, u1);
+					uint32_t u0, u1;
+					packPointer(&reflection, u0, u1);
 
-				optixTrace(optixLaunchParams.traversable,
-					hitPoint,
-					reflectDir,
-					1.e-4f, // tmin
-					1e20f,  // tmax
-					0.0f,   // rayTime
-					OptixVisibilityMask(255),
-					OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
-					RADIANCE_RAY_TYPE,            // SBT offset
-					RAY_TYPE_COUNT,               // SBT stride
-					RADIANCE_RAY_TYPE,            // missSBTIndex 
-					u0, u1
-				);
-				if (!optixLaunchParams.onlyPhotons)
-				{
+					optixTrace(optixLaunchParams.traversable,
+						hitPoint,
+						reflectDir,
+						1.e-4f, // tmin
+						1e20f,  // tmax
+						0.0f,   // rayTime
+						OptixVisibilityMask(255),
+						OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+						RADIANCE_RAY_TYPE,            // SBT offset
+						RAY_TYPE_COUNT,               // SBT stride
+						RADIANCE_RAY_TYPE,            // missSBTIndex 
+						u0, u1
+					);
 					pixelColor += sbtData.specular * reflection.pixelColor;
 				}
-			}
 
-			// refraction component
-			if (sbtData.transmission != vec3f(0)) {
-				float nit;
-				PRD refraction;
-				refraction.pixelColor = vec3f(0.f);
-				refraction.depth = prd.depth;
-				refraction.currentIor = prd.currentIor;
+				if (sbtData.transmission != vec3f(0)) {
+					PRD refraction;
+					refraction.pixelColor = vec3f(0.f);
+					refraction.depth = prd.depth;
+					refraction.currentIor = prd.currentIor;
 
-				// ray comes from outside surface
-				if (cosi < 0) {
-					// we assume that when it leaves the surface, it goes into the air
-					//nit = 1 / sbtData.ior;
-					nit = prd.currentIor / sbtData.ior;
-					cosi = -cosi;
-					refraction.currentIor = sbtData.ior;
-					//printf("holas");
-				}
-				// ray comes from inside surface
-				else {
-					nit = sbtData.ior;
-					//refraction.currentIor = 1;
-				}
-
-				float testrit = nit * nit * (1 - cosi * cosi);
-
-				if (testrit <= 1) {
-					vec3f refractionDir = nit * rayDir + (nit * cosi - sqrtf(1 - testrit)) * Ng;
+					float cosi = dot(rayDir, Ng);
+					float etai = 1, etat = sbtData.ior;
+					vec3f n = Ng;
+					if (cosi < 0) {
+						cosi = -cosi;
+					}
+					else {
+						float tmp = etai;
+						etai = etat;
+						etat = tmp;
+						n = -Ng;
+						//printf("inside");
+					}
+					float eta = etai / etat;
+					float k = 1 - eta * eta * (1 - cosi * cosi);
+					vec3f refrDir = (k < 0) ? vec3f(0) : eta * rayDir + (eta * cosi - sqrtf(k)) * n;
 
 					uint32_t u0, u1;
 					packPointer(&refraction, u0, u1);
 
 					optixTrace(optixLaunchParams.traversable,
 						hitPoint,
-						refractionDir,
+						refrDir,
 						1e-4f,  // tmin
 						1e20f,  // tmax
 						0.0f,   // rayTime
@@ -382,12 +383,57 @@ namespace osc {
 						RADIANCE_RAY_TYPE,            // missSBTIndex 
 						u0, u1
 					);
-					if (!optixLaunchParams.onlyPhotons)
-					{
-						pixelColor += sbtData.transmission * refraction.pixelColor;
-					}
+					pixelColor += sbtData.transmission * refraction.pixelColor;
 				}
 			}
+
+			//// refraction component
+			//if (sbtData.transmission != vec3f(0)) {
+			//	float nit;
+			//	PRD refraction;
+			//	refraction.pixelColor = vec3f(0.f);
+			//	refraction.depth = prd.depth;
+			//	refraction.currentIor = prd.currentIor;
+
+			//	// ray comes from outside surface
+			//	if (cosi < 0) {
+			//		// we assume that when it leaves the surface, it goes into the air
+			//		//nit = 1 / sbtData.ior;
+			//		nit = prd.currentIor / sbtData.ior;
+			//		cosi = -cosi;
+			//		refraction.currentIor = sbtData.ior;
+			//		//printf("holas");
+			//	}
+			//	// ray comes from inside surface
+			//	else {
+			//		nit = sbtData.ior;
+			//		//refraction.currentIor = 1;
+			//	}
+
+			//	float testrit = nit * nit * (1 - cosi * cosi);
+
+			//	if (testrit <= 1) {
+			//		vec3f refractionDir = nit * rayDir + (nit * cosi - sqrtf(1 - testrit)) * Ng;
+
+			//		uint32_t u0, u1;
+			//		packPointer(&refraction, u0, u1);
+
+			//		optixTrace(optixLaunchParams.traversable,
+			//			hitPoint,
+			//			refractionDir,
+			//			1e-4f,  // tmin
+			//			1e20f,  // tmax
+			//			0.0f,   // rayTime
+			//			OptixVisibilityMask(255),
+			//			OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+			//			RADIANCE_RAY_TYPE,            // SBT offset
+			//			RAY_TYPE_COUNT,               // SBT stride
+			//			RADIANCE_RAY_TYPE,            // missSBTIndex 
+			//			u0, u1
+			//		);
+			//		pixelColor += sbtData.transmission * refraction.pixelColor;
+			//	}
+			//}
 		}
 		//if (pixelColor.x > 1 || pixelColor.y > 1 || pixelColor.z > 1)
 		//	printf("%f %f %f\n", pixelColor.x, pixelColor.y, pixelColor.z);

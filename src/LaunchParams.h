@@ -21,7 +21,7 @@
 #include "Photon.h"
 
 #define MAX_RADIUS 0.1
-#define MAX_RADIUS_ONLY_PHOTONS 0.001
+#define MAX_RADIUS_ONLY_PHOTONS 0.005
 
 const int NUM_PHOTON_SAMPLES = 100000;
 const int MAX_DEPTH = 10;
@@ -30,90 +30,90 @@ const int NUM_CAUSTIC_PER_CELL = 1000;
 
 namespace osc
 {
-using namespace gdt;
+	using namespace gdt;
 
-// for this simple example, we have a single ray type
-enum
-{
-  RADIANCE_RAY_TYPE = 0,
-  PHOTON_RAY_TYPE,
-  CAUSTIC_RAY_TYPE,
-  SHADOW_RAY_TYPE,
-  RAY_TYPE_COUNT
-};
+	// for this simple example, we have a single ray type
+	enum
+	{
+		RADIANCE_RAY_TYPE = 0,
+		PHOTON_RAY_TYPE,
+		CAUSTIC_RAY_TYPE,
+		SHADOW_RAY_TYPE,
+		RAY_TYPE_COUNT
+	};
 
-struct TriangleMeshSBTData
-{
-  vec3f color;
-  vec3f specular;
-  vec3f transmission;
-  vec3f *vertex;
-  vec3f *normal;
-  vec2f *texcoord;
-  vec3i *index;
-  bool hasTexture;
-  cudaTextureObject_t texture;
-  float ior, phong;
-};
+	struct TriangleMeshSBTData
+	{
+		vec3f color;
+		vec3f specular;
+		vec3f transmission;
+		vec3f* vertex;
+		vec3f* normal;
+		vec2f* texcoord;
+		vec3i* index;
+		bool hasTexture;
+		cudaTextureObject_t texture;
+		float ior, phong;
+	};
 
-struct PhotonPrint
-{
-  vec3f position;
-  vec3f power;
-  bool operator==(PhotonPrint const &other)
-  {
-    return position == other.position && power == other.power;
-  }
-  bool operator!=(PhotonPrint const &other)
-  {
-    return position != other.position || power != other.power;
-  }
-};
+	struct PhotonPrint
+	{
+		vec3f position;
+		vec3f power;
+		bool operator==(PhotonPrint const& other)
+		{
+			return position == other.position && power == other.power;
+		}
+		bool operator!=(PhotonPrint const& other)
+		{
+			return position != other.position || power != other.power;
+		}
+	};
 
-struct LaunchParams
-{
-  struct
-  {
-    uint32_t *colorBuffer;
-    vec2i size;
-    int accumID{0};
-  } frame;
+	struct LaunchParams
+	{
+		struct
+		{
+			uint32_t* colorBuffer;
+			vec2i size;
+			int accumID{ 0 };
+		} frame;
 
-  struct
-  {
-    vec3f position;
-    vec3f direction;
-    vec3f horizontal;
-    vec3f vertical;
-  } camera;
+		struct
+		{
+			vec3f position;
+			vec3f direction;
+			vec3f horizontal;
+			vec3f vertical;
+		} camera;
 
-  struct
-  {
-    vec3f origin, normal, intensity, photonPower;
-  } light;
+		struct
+		{
+			vec3f origin, normal, intensity, photonPower;
+		} light;
 
-  vec2f *halton;
+		vec2f* halton;
 
-  PhotonPrint *prePhotonMap;
-  PhotonPrint *photonMap;
-  int mapSize;
+		PhotonPrint* prePhotonMap;
+		PhotonPrint* photonMap;
+		int mapSize;
 
-  // caustics
-  PhotonPrint *preCausticMap;
-  PhotonPrint *causticMap;
+		// caustics
+		PhotonPrint* preCausticMap;
+		PhotonPrint* causticMap;
 
-  int *projectionMap;
+		int* projectionMap;
 
-  // hash grid
-  PhotonPrint *pm;
-  int *pmCount;
-  int *pmStarts;
-  vec3i gridSize;
-  vec3f lowerBound;
+		// hash grid
+		PhotonPrint* pm;
+		int* pmCount;
+		int* pmStarts;
+		vec3i gridSize;
+		vec3f lowerBound;
 
-  OptixTraversableHandle traversable;
+		OptixTraversableHandle traversable;
 
-  bool onlyPhotons;
-};
+		bool onlyPhotons;
+	};
 
 } // namespace osc
