@@ -54,6 +54,14 @@ namespace osc {
 										 cameraFrame.get_up() });
 				cameraFrame.modified = false;
 			}
+
+			if (cameraFrame.screenshot)
+			{
+				cameraFrame.screenshot = false;
+				drawLoops = 0;
+				sample.renderPhotons();
+			}
+
 			sample.render();
 		}
 

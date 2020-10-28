@@ -64,6 +64,10 @@ namespace osc {
 		/*! perform the first pass of photon mapping */
 		void photonPass();
 		void causticsPass();
+
+		/*! renders only the photons for the next frame */
+		void renderPhotons();
+
 	protected:
 		// ------------------------------------------------------------------
 		// internal helper functions
@@ -103,6 +107,8 @@ namespace osc {
 
 		/*! upload textures, and create cuda texture objects for them */
 		void createTextures();
+
+
 	protected:
 		/*! @{ CUDA device context and stream that optix pipeline will run
 			on, as well as device properties for this device */

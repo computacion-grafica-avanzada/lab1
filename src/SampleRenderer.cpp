@@ -1078,4 +1078,10 @@ passed to trace. */
 		prePhotonMap.download(h_pixels, NUM_PHOTON_SAMPLES * MAX_DEPTH);
 	}
 
+	/*! renders only the photons for the next frame */
+	void SampleRenderer::renderPhotons()
+	{
+		launchParams.onlyPhotons = true;
+	}
+
 } // namespace osc

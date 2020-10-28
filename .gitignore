@@ -18,3 +18,4 @@ ZERO_CHECK.*
 cmake_install.cmake
 CMakeCache
 CMakeFiles
+results
