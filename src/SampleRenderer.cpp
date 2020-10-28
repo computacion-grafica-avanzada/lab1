@@ -22,6 +22,12 @@
 #include "PhotonMap.h"
 #include "halton_seq.h"
 
+#include <algorithm>
+#include <iostream>
+#include <iterator>
+#include <vector>
+#include <fstream> // looks like we need this too
+
 /*! \namespace osc - Optix Siggraph Course */
 namespace osc
 {
@@ -61,23 +67,6 @@ namespace osc
 		: model(model)
 	{
 		initOptix();
-
-		std::cout << "#osc: creating halton numbers ..." << std::endl;
-		std::vector<vec2f> haltons;
-		for (int i = 0; i < launchParams.numPhotonSamples; i++)
-		{
-			if (launchParams.numPhotonSamples > 1000000)
-			{
-				double* numeros = halton(i + 181472, 2);
-				haltons.push_back(vec2f((float)numeros[0], (float)numeros[1]));
-			}
-			else
-			{
-				haltons.push_back(vec2f(HALTON_1[i], HALTON_2[i]));
-			}
-		}
-		haltonNumbers.alloc_and_upload(haltons);
-		launchParams.halton = (vec2f*)haltonNumbers.d_pointer();
 
 		std::cout << "#osc: setting hash grid ..." << std::endl;
 		vec3f cells = model->bounds.size() / vec3f(launchParams.maxRadius);
@@ -127,20 +116,10 @@ namespace osc
 		std::cout << "#osc: Optix 7 Sample fully set up" << std::endl;
 		std::cout << GDT_TERMINAL_DEFAULT;
 
-		std::vector<int> projection(NC * NC, 0);
-		projectionMap.alloc_and_upload(projection);
-		launchParams.projectionMap = (int*)projectionMap.d_pointer();
-
 		launchParams.onlyPhotons = true;
 
 		std::cout << "#osc: starting photon pass" << std::endl;
 		photonPass();
-		std::cout << "#osc: finished photon pass" << std::endl;
-
-		projectionMap.download(projection.data(), projection.size());
-
-		std::cout << "#osc: starting photon pass" << std::endl;
-		causticsPass();
 		std::cout << "#osc: finished photon pass" << std::endl;
 	}
 
@@ -149,98 +128,131 @@ namespace osc
 		return (a > b) ? a : b;
 	}
 
-	void SampleRenderer::causticsPass()
-	{
-		// resize our cuda frame buffer
-		preCausticMap.resize(NUM_CAUSTIC_PER_CELL * NC * NC * sizeof(PhotonPrint));
-		launchParams.preCausticMap = (PhotonPrint*)preCausticMap.d_pointer();
+	//void SampleRenderer::causticsPass()
+	//{
+	//	// resize our cuda frame buffer
+	//	preCausticMap.resize(NUM_CAUSTIC_PER_CELL * NC * NC * sizeof(PhotonPrint));
+	//	launchParams.preCausticMap = (PhotonPrint*)preCausticMap.d_pointer();
 
-		// set launchParams for launch
-		launchParamsBufferCaustics.alloc(sizeof(launchParams));
-		launchParamsBufferCaustics.upload(&launchParams, 1);
+	//	// set launchParams for launch
+	//	launchParamsBufferCaustics.alloc(sizeof(launchParams));
+	//	launchParamsBufferCaustics.upload(&launchParams, 1);
 
-		OPTIX_CHECK(optixLaunch(
-			pipeline,
-			stream,
-			launchParamsBufferCaustics.d_pointer(),
-			launchParamsBufferCaustics.sizeInBytes,
-			&sbtCaustics,
-			NC,
-			NC,
-			1));
+	//	OPTIX_CHECK(optixLaunch(
+	//		pipeline,
+	//		stream,
+	//		launchParamsBufferCaustics.d_pointer(),
+	//		launchParamsBufferCaustics.sizeInBytes,
+	//		&sbtCaustics,
+	//		NC,
+	//		NC,
+	//		1));
 
-		std::vector<PhotonPrint> photonsData(NUM_CAUSTIC_PER_CELL * NC * NC);
-		preCausticMap.download(photonsData.data(), photonsData.size());
-	}
+	//	std::vector<PhotonPrint> photonsData(NUM_CAUSTIC_PER_CELL * NC * NC);
+	//	preCausticMap.download(photonsData.data(), photonsData.size());
+	//}
 
 	void SampleRenderer::photonPass()
 	{
-		// resize our cuda frame buffer
-		prePhotonMap.resize(launchParams.numPhotonSamples * launchParams.maxDepth * sizeof(PhotonPrint));
-		launchParams.prePhotonMap = (PhotonPrint*)prePhotonMap.d_pointer();
-
-		// set launchParams for launch
-		launchParamsBufferGlobal.alloc(sizeof(launchParams));
-		launchParamsBufferGlobal.upload(&launchParams, 1);
-
-		OPTIX_CHECK(optixLaunch(
-			pipeline,
-			stream,
-			launchParamsBufferGlobal.d_pointer(),
-			launchParamsBufferGlobal.sizeInBytes,
-			&sbtGlobal,
-			launchParams.numPhotonSamples,
-			1,
-			1));
 		int totalCells = launchParams.gridSize.x * launchParams.gridSize.y * launchParams.gridSize.z;
-
-		// obtain photon traces
-		std::vector<PhotonPrint> photonsData(launchParams.numPhotonSamples * launchParams.maxDepth);
-		prePhotonMap.download(photonsData.data(), photonsData.size());
-		prePhotonMap.free();
-
-		// filter empty slots and populate grid
-		PhotonPrint nu = { vec3f(0), vec3f(0) };
-
-		std::vector<int> pmGridCount(totalCells, 0);				// amount of photons per cell
-		std::vector<std::vector<PhotonPrint>> multiple(totalCells); // list of photons per cell
-		for (auto ph : photonsData)
-		{
-			if (ph != nu)
-			{
-				vec3f local = ph.position - launchParams.lowerBound;
-				vec3i G(
-					max(0, (int)(local.x / launchParams.maxRadius)),
-					max(0, (int)(local.y / launchParams.maxRadius)),
-					max(0, (int)(local.z / launchParams.maxRadius)));
-				int hashId = G.x + G.y * launchParams.gridSize.x + G.z * launchParams.gridSize.x * launchParams.gridSize.y;
-				multiple[hashId].push_back(ph);
-				pmGridCount[hashId] += 1;
-			}
-		}
-		photonsData.clear();
-
-		// linearilize photon map
-		std::vector<PhotonPrint> traces;
+		std::vector<int> pmGridCount(totalCells, 0);	// amount of photons per cell
 		std::vector<int> pmGridStarts(totalCells, 0);
-		for (int i = 0; i < multiple.size(); i++)
-		{
-			pmGridStarts[i] = traces.size();
-			for (auto trace : multiple[i])
-			{
-				traces.push_back(trace);
-			}
+		std::vector<PhotonPrint> traces;
+		if (loadPhotonMap(traces, pmGridCount, pmGridStarts)) {
+			// upload buffers to GPU
+			pmStarts.alloc_and_upload(pmGridStarts);
+			launchParams.pmStarts = (int*)pmStarts.d_pointer();
+
+			pmCount.alloc_and_upload(pmGridCount);
+			launchParams.pmCount = (int*)pmCount.d_pointer();
+
+			pm.alloc_and_upload(traces);
+			launchParams.pm = (PhotonPrint*)pm.d_pointer();
 		}
+		else {
+			std::cout << "#osc: creating halton numbers ..." << std::endl;
+			std::vector<vec2f> haltons;
+			for (int i = 0; i < launchParams.numPhotonSamples; i++)
+			{
+				if (launchParams.numPhotonSamples > 1000000)
+				{
+					double* numeros = halton(i + 181472, 2);
+					haltons.push_back(vec2f((float)numeros[0], (float)numeros[1]));
+				}
+				else
+				{
+					haltons.push_back(vec2f(HALTON_1[i], HALTON_2[i]));
+				}
+			}
+			haltonNumbers.alloc_and_upload(haltons);
+			launchParams.halton = (vec2f*)haltonNumbers.d_pointer();
 
-		// upload buffers to GPU
-		pmStarts.alloc_and_upload(pmGridStarts);
-		launchParams.pmStarts = (int*)pmStarts.d_pointer();
+			// resize our cuda frame buffer
+			prePhotonMap.resize(launchParams.numPhotonSamples * launchParams.maxDepth * sizeof(PhotonPrint));
+			launchParams.prePhotonMap = (PhotonPrint*)prePhotonMap.d_pointer();
 
-		pmCount.alloc_and_upload(pmGridCount);
-		launchParams.pmCount = (int*)pmCount.d_pointer();
+			// set launchParams for launch
+			launchParamsBufferGlobal.alloc(sizeof(launchParams));
+			launchParamsBufferGlobal.upload(&launchParams, 1);
 
-		pm.alloc_and_upload(traces);
-		launchParams.pm = (PhotonPrint*)pm.d_pointer();
+			OPTIX_CHECK(optixLaunch(
+				pipeline,
+				stream,
+				launchParamsBufferGlobal.d_pointer(),
+				launchParamsBufferGlobal.sizeInBytes,
+				&sbtGlobal,
+				launchParams.numPhotonSamples,
+				1,
+				1));
+
+			// obtain photon traces
+			std::vector<PhotonPrint> photonsData(launchParams.numPhotonSamples * launchParams.maxDepth);
+			prePhotonMap.download(photonsData.data(), photonsData.size());
+			prePhotonMap.free();
+			haltonNumbers.free();
+
+			// filter empty slots and populate grid
+			PhotonPrint nu = { vec3f(0), vec3f(0) };
+
+			std::vector<std::vector<PhotonPrint>> multiple(totalCells); // list of photons per cell
+			for (auto ph : photonsData)
+			{
+				if (ph != nu)
+				{
+					vec3f local = ph.position - launchParams.lowerBound;
+					vec3i G(
+						max(0, (int)(local.x / launchParams.maxRadius)),
+						max(0, (int)(local.y / launchParams.maxRadius)),
+						max(0, (int)(local.z / launchParams.maxRadius)));
+					int hashId = G.x + G.y * launchParams.gridSize.x + G.z * launchParams.gridSize.x * launchParams.gridSize.y;
+					multiple[hashId].push_back(ph);
+					pmGridCount[hashId] += 1;
+				}
+			}
+			photonsData.clear();
+
+			// linearilize photon map
+			for (int i = 0; i < multiple.size(); i++)
+			{
+				pmGridStarts[i] = traces.size();
+				for (auto trace : multiple[i])
+				{
+					traces.push_back(trace);
+				}
+			}
+
+			// upload buffers to GPU
+			pmStarts.alloc_and_upload(pmGridStarts);
+			launchParams.pmStarts = (int*)pmStarts.d_pointer();
+
+			pmCount.alloc_and_upload(pmGridCount);
+			launchParams.pmCount = (int*)pmCount.d_pointer();
+
+			pm.alloc_and_upload(traces);
+			launchParams.pm = (PhotonPrint*)pm.d_pointer();
+
+			savePhotonMap(traces, pmGridCount, pmGridStarts);
+		}
 	}
 
 	void SampleRenderer::createTextures()
@@ -1090,6 +1102,62 @@ passed to trace. */
 	void SampleRenderer::renderPhotons()
 	{
 		launchParams.onlyPhotons = true;
+	}
+
+	void SampleRenderer::savePhotonMap(vector<PhotonPrint> photons, vector<int> counts, vector<int> starts) {
+		std::string traces_path("../../traces");
+		std::ofstream TRACES(traces_path, std::ios::out | std::ofstream::binary);
+		// https://stackoverflow.com/questions/28492517/write-and-load-vector-of-structs-in-a-binary-file-c
+		typename vector<PhotonPrint>::size_type size = photons.size();
+		TRACES.write((char*)&size, sizeof(size));
+		TRACES.write((char*)&photons[0], photons.size() * sizeof(PhotonPrint));
+		TRACES.close();
+
+		std::string starts_path("../../starts");
+		std::ofstream STARTS(starts_path, std::ios::out | std::ofstream::binary);
+		std::copy(starts.begin(), starts.end(), std::ostream_iterator<int>{STARTS, " "});
+		STARTS.close();
+
+		std::string counts_path("../../counts");
+		std::ofstream COUNTS(counts_path, std::ios::out | std::ofstream::binary);
+		std::copy(counts.begin(), counts.end(), std::ostream_iterator<int>{COUNTS, " "});
+		COUNTS.close();
+	}
+
+	bool SampleRenderer::loadPhotonMap(vector<PhotonPrint>& photons, vector<int>& counts, vector<int>& starts) {
+		bool ok = true;
+
+		// load photon traces
+		std::string traces_path("../../traces");
+		std::ifstream TRACES(traces_path, std::ios::in | std::ifstream::binary);
+		ok = ok && TRACES.good();
+		if (TRACES.good()) {
+			typename vector<PhotonPrint>::size_type size = 0;
+			TRACES.read((char*)&size, sizeof(size));
+			photons.resize(size);
+			TRACES.read((char*)&photons[0], photons.size() * sizeof(PhotonPrint));
+			TRACES.close();
+		}
+
+		// load photon starts
+		std::string starts_path("../../starts");
+		std::ifstream STARTS(starts_path, std::ios::in | std::ifstream::binary);
+		ok = ok && STARTS.good();
+		std::istream_iterator<int> iter_starts{ STARTS };
+		std::istream_iterator<int> end_starts{};
+		std::copy(iter_starts, end_starts, starts.begin());
+		//std::copy(iter, end, std::back_inserter(starts));
+		STARTS.close();
+
+		// load photon counts
+		std::string counts_path("../../counts");
+		std::ifstream COUNTS(counts_path, std::ios::in | std::ifstream::binary);
+		ok = ok && COUNTS.good();
+		std::istream_iterator<int> iter_counts{ COUNTS };
+		std::istream_iterator<int> end_counts{};
+		std::copy(iter_counts, end_counts, counts.begin());
+		COUNTS.close();
+		return ok;
 	}
 
 } // namespace osc

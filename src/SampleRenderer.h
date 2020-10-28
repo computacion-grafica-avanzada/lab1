@@ -111,7 +111,8 @@ namespace osc {
 		/*! upload textures, and create cuda texture objects for them */
 		void createTextures();
 
-
+		bool loadPhotonMap(std::vector<PhotonPrint> &photons, std::vector<int> &counts, std::vector<int> &starts);
+		void savePhotonMap(std::vector<PhotonPrint> photons, std::vector<int> counts, std::vector<int> starts);
 	protected:
 		/*! @{ CUDA device context and stream that optix pipeline will run
 			on, as well as device properties for this device */
