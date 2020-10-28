@@ -196,13 +196,13 @@ namespace osc {
 		const vec3i index = sbtData.index[primID];
 
 		// ------------------------------------------------------------------
-		// compute normal, using either shading normal (if avail), or
-		// geometry normal (fallback)
+		// compute geometry normal and normalize it
 		// ------------------------------------------------------------------
 		const vec3f& A = sbtData.vertex[index.x];
 		const vec3f& B = sbtData.vertex[index.y];
 		const vec3f& C = sbtData.vertex[index.z];
 		vec3f Ng = cross(B - A, C - A);
+		Ng = normalize(Ng);
 
 		// ------------------------------------------------------------------
 		// compute ray intersection point
@@ -213,11 +213,17 @@ namespace osc {
 		vec3f hitPoint = rayOrig + rayDir * rayT;
 
 		// ------------------------------------------------------------------
-		// face-forward and normalize normals
+		// face-forward normals
 		// ------------------------------------------------------------------
+		vec3f N = Ng;
 		float cosi = dot(rayDir, Ng);
 		if (cosi > 0.f) Ng = -Ng;
-		Ng = normalize(Ng);
+
+		//if (ix == 600 && iy == 400) {
+		//	printf("befor %f %f %f normal %f %f %f hit %f %f %f depth %i\n", N.x, N.y, N.z, Ng.x, Ng.y, Ng.z, hitPoint.x, hitPoint.y, hitPoint.z, prd.depth);
+		//}
+		
+		
 
 		// start with some ambient term
 		vec3f pixelColor(0.f);
@@ -350,19 +356,19 @@ namespace osc {
 					refraction.depth = prd.depth;
 					refraction.currentIor = prd.currentIor;
 
-					float cosi = dot(rayDir, Ng);
+					/*float cosi = dot(rayDir, Ng);*/
 					float etai = 1, etat = sbtData.ior;
 					vec3f n = Ng;
-					if (cosi < 0) {
-						cosi = -cosi;
-					}
-					else {
+					if (cosi < 0) { 
+						cosi = -cosi; 
+					} else {
 						float tmp = etai;
 						etai = etat;
 						etat = tmp;
-						n = -Ng;
+						//n = -Ng; already done before
 						//printf("inside");
 					}
+
 					float eta = etai / etat;
 					float k = 1 - eta * eta * (1 - cosi * cosi);
 					vec3f refrDir = (k < 0) ? vec3f(0) : eta * rayDir + (eta * cosi - sqrtf(k)) * n;
@@ -396,17 +402,19 @@ namespace osc {
 			//	refraction.currentIor = prd.currentIor;
 
 			//	// ray comes from outside surface
+			//	float cosi = dot(rayDir, Ng);
 			//	if (cosi < 0) {
-			//		// we assume that when it leaves the surface, it goes into the air
-			//		//nit = 1 / sbtData.ior;
-			//		nit = prd.currentIor / sbtData.ior;
+			//		nit = 1 / sbtData.ior;
+			//		//nit = prd.currentIor / sbtData.ior;
 			//		cosi = -cosi;
 			//		refraction.currentIor = sbtData.ior;
 			//		//printf("holas");
 			//	}
 			//	// ray comes from inside surface
 			//	else {
+			//		// we assume that when it leaves the surface, it goes into the air
 			//		nit = sbtData.ior;
+			//		Ng = -Ng;
 			//		//refraction.currentIor = 1;
 			//	}
 

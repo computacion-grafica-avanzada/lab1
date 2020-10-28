@@ -139,7 +139,7 @@ namespace osc
 		projectionMap.download(projection.data(), projection.size());
 
 		std::cout << "#osc: starting photon pass" << std::endl;
-		causticsPass();
+		//causticsPass();
 		std::cout << "#osc: finished photon pass" << std::endl;
 	}
 

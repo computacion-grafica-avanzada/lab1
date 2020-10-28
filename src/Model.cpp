@@ -210,9 +210,11 @@ namespace osc {
 
     // of course, you should be using tbb::parallel_for for stuff
     // like this:
-    for (auto mesh : model->meshes)
-      for (auto vtx : mesh->vertex)
-        model->bounds.extend(vtx);
+    for (auto mesh : model->meshes) {
+        std::cout << "created mesh with " << mesh->vertex.size() << std::endl;
+        for (auto vtx : mesh->vertex)
+            model->bounds.extend(vtx);
+    }
     
     std::cout << "created a total of " << model->meshes.size() << " meshes" << std::endl;
     return model;
