@@ -1,4 +1,4 @@
-../../models/custom_cube.obj
+../../models/CornellBox-Sphere-RG.obj
 0.0 1.0 5.0
 0.0 1.0 0.0
 0 1.98 0

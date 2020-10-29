@@ -25,6 +25,7 @@
 #include <ctime>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "3rdParty/stb_image_write.h"
+#include <chrono>
 
 
 
@@ -249,6 +250,7 @@ namespace osc {
 	extern "C" int main(int ac, char** av)
 	{
 		try {
+			auto start = std::chrono::high_resolution_clock::now();
 			string objFileName;
 			vec3f cameraPos;
 			vec3f cameraUp;
@@ -270,12 +272,6 @@ namespace osc {
 				/* up */cameraUp
 			};
 
-			// some simple, hard-coded light ... obviously, only works for sponza
-			//QuadLight light = { /* origin */ vec3f(0,1.97f,0),
-			//                    /* edge 1 */ vec3f(-.24f,0,-.22f),
-			//                    /* edge 2 */ vec3f(.23f,0,.16f),
-			//                    /* power */  vec3f(3.f) };
-
 			PointLight light = { numPhotonSamples, lightPos, lightDir, lightPower };
 
 			// something approximating the scale of the world, so the
@@ -284,6 +280,10 @@ namespace osc {
 
 			SampleWindow* window = new SampleWindow("Optix 7 Course Example", model, camera, light, worldScale, objFileName);
 			window->sample.setParams(numPhotonSamples, maxDepth, radius, antialiasingLevel);
+			
+			auto finish = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<double> elapsed = finish - start;
+			std::cout << "Pre-render (includes photon pass) elapsed time: " << elapsed.count() << " s\n";
 			window->run();
 		}
 		catch (std::runtime_error& e) {

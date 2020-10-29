@@ -225,18 +225,9 @@ namespace osc {
 		// compute multiple diffuse
 		// ------------------------------------------------------------------
 		if (sbtData.color != vec3f(0) && (cosi <= 0.f)) {
-			float radius;
-			if (optixLaunchParams.onlyPhotons)
-			{
-				radius = MAX_RADIUS_ONLY_PHOTONS;
-			}
-			else
-			{
-				radius = optixLaunchParams.maxRadius;
-			}
+			float radius = (optixLaunchParams.onlyPhotons) ? optixLaunchParams.maxRadius / 20 : optixLaunchParams.maxRadius;
 			vec3f totalPower = nearest_photons_hash_list(hitPoint, radius);
 			vec3f brdf = sbtData.color / M_PI;
-			//printf("%f %f %f \n", totalPower.x, totalPower.y, totalPower.z);
 			float delta_a = M_PI * radius * radius;
 			if (optixLaunchParams.onlyPhotons)
 			{
@@ -247,11 +238,8 @@ namespace osc {
 				// sin filtros
 				pixelColor += (totalPower * brdf) / delta_a;
 			}
-
-			//pixelColor += totalPower;
-
 			// filtro gauss
-				//pixelColor += totalPower * brdf;
+			//pixelColor += totalPower * brdf;
 		}
 
 		// ------------------------------------------------------------------

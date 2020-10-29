@@ -27,6 +27,7 @@
 #include <iterator>
 #include <vector>
 #include <fstream> // looks like we need this too
+#include <chrono>
 
 /*! \namespace osc - Optix Siggraph Course */
 namespace osc
@@ -120,9 +121,18 @@ namespace osc
 
 		launchParams.onlyPhotons = true;
 
+
+		auto start = std::chrono::high_resolution_clock::now();
 		std::cout << "#osc: starting photon pass" << std::endl;
 		photonPass();
 		std::cout << "#osc: finished photon pass" << std::endl;
+		auto finish = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> elapsed = finish - start;
+		std::cout << "Photon pass elapsed time: " << elapsed.count() << " s\n";
+		// here would be the caustics pass
+		//std::cout << "#osc: starting caustic pass" << std::endl;
+		//causticsPass();
+		//std::cout << "#osc: finished caustic pass" << std::endl;
 	}
 
 	int max(int a, int b)
@@ -498,9 +508,7 @@ namespace osc
 		OPTIX_CHECK(optixDeviceContextSetLogCallback(optixContext, context_log_cb, nullptr, 4));
 	}
 
-	/*! creates the module that contains all the programs we are going
-		  to use. in this simple example, we use a single module from a
-		  single .cu file, using a single embedded ptx string */
+	/*! creates the module that contains all the programs we are going to use. */
 	void SampleRenderer::createModule()
 	{
 		moduleCompileOptions = {};
@@ -788,16 +796,16 @@ namespace osc
 		OPTIX_CHECK(optixPipelineSetStackSize(/* [in] The pipeline to configure the stack size for */
 			pipeline,
 			/* [in] The direct stack size requirement for direct
-callables invoked from IS or AH. */
-2 * 1024,
-/* [in] The direct stack size requirement for direct
-callables invoked from RG, MS, or CH.  */
-2 * 1024,
-/* [in] The continuation stack requirement. */
-2 * 1024,
-/* [in] The maximum depth of a traversable graph
-passed to trace. */
-1));
+			callables invoked from IS or AH. */
+			2 * 1024,
+			/* [in] The direct stack size requirement for direct
+			callables invoked from RG, MS, or CH.  */
+			2 * 1024,
+			/* [in] The continuation stack requirement. */
+			2 * 1024,
+			/* [in] The maximum depth of a traversable graph
+			passed to trace. */
+			1));
 		if (sizeof_log > 1)
 			PRINT(log);
 	}
@@ -1021,6 +1029,7 @@ passed to trace. */
 	/*! render one frame */
 	void SampleRenderer::render()
 	{
+		auto start = std::chrono::high_resolution_clock::now();
 		// sanity check: make sure we launch only after first resize is
 		// already done:
 		if (launchParams.frame.size.x == 0)
@@ -1041,6 +1050,12 @@ passed to trace. */
 			1));
 
 		launchParams.onlyPhotons = false;
+
+		auto finish = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> elapsed = finish - start;
+		if (launchParams.frame.accumID <= 2)
+			std::cout << "Render pass elapsed time: " << elapsed.count() << " s\n";
+
 
 		// sync - make sure the frame is rendered before we download and
 		// display (obviously, for a high-performance application you
@@ -1111,11 +1126,11 @@ passed to trace. */
 		std::string file(launchParams.objFileName);
 
 		//http://www.cplusplus.com/reference/string/string/find_last_of/
-		std::cout << "Splitting: " << file << '\n';
+		//std::cout << "Splitting: " << file << '\n';
 		std::size_t found = file.find_last_of("/\\");
 		std::size_t ext = file.find_last_of(".");
-		std::cout << " path: " << file.substr(0, found) << '\n';
-		std::cout << " file: " << file.substr(found + 1) << '\n';
+		//std::cout << " path: " << file.substr(0, found) << '\n';
+		//std::cout << " file: " << file.substr(found + 1) << '\n';
 
 		return file.substr(found + 1)
 			+ "_pos" + to_string(launchParams.light.origin.x) + to_string(launchParams.light.origin.y) + to_string(launchParams.light.origin.z)
@@ -1129,7 +1144,7 @@ passed to trace. */
 
 	void SampleRenderer::savePhotonMap(vector<PhotonPrint> photons, vector<int> counts, vector<int> starts) {
 		std::string config = getConfigStr();
-		std::string traces_path("../../traces_" + config);
+		std::string traces_path("../../maps/traces_" + config);
 		std::ofstream TRACES(traces_path, std::ios::out | std::ofstream::binary);
 		// https://stackoverflow.com/questions/28492517/write-and-load-vector-of-structs-in-a-binary-file-c
 		typename vector<PhotonPrint>::size_type size = photons.size();
@@ -1137,22 +1152,23 @@ passed to trace. */
 		TRACES.write((char*)&photons[0], photons.size() * sizeof(PhotonPrint));
 		TRACES.close();
 
-		std::string starts_path("../../starts_" + config);
+		std::string starts_path("../../maps/starts_" + config);
 		std::ofstream STARTS(starts_path, std::ios::out | std::ofstream::binary);
 		std::copy(starts.begin(), starts.end(), std::ostream_iterator<int>{STARTS, " "});
 		STARTS.close();
 
-		std::string counts_path("../../counts_" + config);
+		std::string counts_path("../../maps/counts_" + config);
 		std::ofstream COUNTS(counts_path, std::ios::out | std::ofstream::binary);
 		std::copy(counts.begin(), counts.end(), std::ostream_iterator<int>{COUNTS, " "});
 		COUNTS.close();
 	}
 
 	bool SampleRenderer::loadPhotonMap(vector<PhotonPrint>& photons, vector<int>& counts, vector<int>& starts) {
+		std::cout << "Loading photon map" << '\n';
 		bool ok = true;
 		std::string config = getConfigStr();
 		// load photon traces
-		std::string traces_path("../../traces_" + config);
+		std::string traces_path("../../maps/traces_" + config);
 		std::ifstream TRACES(traces_path, std::ios::in | std::ifstream::binary);
 		ok = ok && TRACES.good();
 		if (TRACES.good()) {
@@ -1164,7 +1180,7 @@ passed to trace. */
 		}
 
 		// load photon starts
-		std::string starts_path("../../starts_" + config);
+		std::string starts_path("../../maps/starts_" + config);
 		std::ifstream STARTS(starts_path, std::ios::in | std::ifstream::binary);
 		ok = ok && STARTS.good();
 		std::istream_iterator<int> iter_starts{ STARTS };
@@ -1174,7 +1190,7 @@ passed to trace. */
 		STARTS.close();
 
 		// load photon counts
-		std::string counts_path("../../counts_" + config);
+		std::string counts_path("../../maps/counts_" + config);
 		std::ifstream COUNTS(counts_path, std::ios::in | std::ifstream::binary);
 		ok = ok && COUNTS.good();
 		std::istream_iterator<int> iter_counts{ COUNTS };

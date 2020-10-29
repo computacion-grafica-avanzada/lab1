@@ -101,7 +101,6 @@ namespace osc
 
 		PhotonPrint* prePhotonMap;
 		PhotonPrint* photonMap;
-		int mapSize;
 
 		// caustics
 		PhotonPrint* preCausticMap;

@@ -90,20 +90,13 @@ namespace osc {
 		float cosi = dot(rayDir, Ng);
 		if (cosi > 0.f) Ng = -Ng;
 
-		int rand_index = prd.random() * optixLaunchParams.numPhotonSamples;
-		//int rand_index = (ix * prd.depth + 1) % NUM_PHOTON_SAMPLES;
-		float coin = optixLaunchParams.halton[rand_index].x;
-		//float coin = optixLaunchParams.halton[ix].x;
-
 		// diffuse component is color for now
 		float Pd = max(sbtData.color * prd.power) / max(prd.power);
 		float Ps = max(sbtData.specular * prd.power) / max(prd.power);
 		float Pt = max(sbtData.transmission * prd.power) / max(prd.power);
-		//printf("color %f %f %f maximo %f prob difuso %f mult %f %f %f\n", sbtData.color.x, sbtData.color.y, sbtData.color.z, max(sbtData.color), Pd, (sbtData.color * prd.power).x, (sbtData.color * prd.power).y, (sbtData.color * prd.power).z);
-
+		
 		prd.depth += 1;
-		//if (coin >= 1) printf("coin %f", coin);
-		coin = prd.random();
+		float coin = prd.random();
 		if (coin <= Pd) {
 			//diffuse
 
@@ -130,14 +123,12 @@ namespace osc {
 				vec3f U, V, W, direction;
 				create_onb(Ng, U, V, W);
 
+				int rand_index = prd.random() * optixLaunchParams.numPhotonSamples;
 				sampleUnitHemisphere(optixLaunchParams.halton[rand_index], U, V, W, direction);
 
 				diffuse.power = (prd.power * sbtData.color) / Pd;
-				prd.power = (prd.power * sbtData.color) / Pd;
-				printf("%f %f %f otro %f %f %f\n", diffuse.power.x, diffuse.power.y, diffuse.power.z, prd.power.x, prd.power.y, prd.power.z);
 
 				uint32_t u0, u1;
-				//packPointer(&prd, u0, u1);
 				packPointer(&diffuse, u0, u1);
 
 				optixTrace(
@@ -155,12 +146,6 @@ namespace osc {
 					//prd.depth						// reinterpret_cast<unsigned int&>(prd.depth)
 					u0, u1
 				);
-
-				//printf("hit %f %f %f dir %f %f %f normal %f %f %f depth %i\n",
-				//	hitPoint.x, hitPoint.y, hitPoint.z,
-				//	direction.x, direction.y, direction.z,
-				//	Ng.x, Ng.y, Ng.z, prd.depth
-				//);
 			}
 		}
 		else if (coin <= Pd + Ps) {
@@ -171,14 +156,13 @@ namespace osc {
 				reflection.random = prd.random;
 				reflection.depth = prd.depth;
 				reflection.currentIor = prd.currentIor;
+
 				uint32_t u0, u1;
-				//packPointer(&prd, u0, u1);
 				packPointer(&reflection, u0, u1);
 
 				// obtain reflection direction
 				vec3f reflectDir = reflect(rayDir, Ng); //rayo en la direccion de reflexion desde punto;
 
-				//prd.power = (prd.power * sbtData.specular) / Ps;
 				reflection.power = (prd.power * sbtData.specular) / Ps;
 
 				optixTrace(
@@ -208,9 +192,7 @@ namespace osc {
 
 				uint32_t u0, u1;
 				packPointer(&refraction, u0, u1);
-				//packPointer(&prd, u0, u1);
 
-				/*float cosi = dot(rayDir, Ng);*/
 				float etai = 1, etat = sbtData.ior;
 				vec3f n = Ng;
 				if (cosi < 0) {
@@ -220,8 +202,6 @@ namespace osc {
 					float tmp = etai;
 					etai = etat;
 					etat = tmp;
-					//n = -Ng; already done before
-					//printf("inside");
 				}
 
 				float eta = etai / etat;
@@ -230,8 +210,7 @@ namespace osc {
 					vec3f refrDir = eta * rayDir + (eta * cosi - sqrtf(k)) * n;
 
 					refraction.power = (prd.power * sbtData.transmission) / Pt;
-					//prd.power = (prd.power * sbtData.transmission) / Pt;
-				
+
 					optixTrace(
 					optixLaunchParams.traversable,
 					hitPoint,
@@ -257,35 +236,17 @@ namespace osc {
 				pp.power = prd.power;
 				optixLaunchParams.prePhotonMap[ix * optixLaunchParams.maxDepth + prd.depth - 2] = pp;
 
+				// stochastic hash grid implementation
 				//int hashId = hash(hitPoint, optixLaunchParams.gridSize, optixLaunchParams.lowerBound);
 				//optixLaunchParams.pm[hashId] = pp;
 				//atomicAdd(&optixLaunchParams.pmCount[hashId], 1);
 			}
 		}
-
-
-		// ruleta rusa
-		// en el caso difuso si depth es 0 no se guarda marca
-		// chequear depth+1 menor a MAX
-		// tirar rayos acorde a reflexion difusa, specular, transmision o nada si se absorbe
-
 	}
 
-	extern "C" __global__ void __anyhit__photon()
-	{ /*! not going to be used */
-	}
-
-	//------------------------------------------------------------------------------
-	// miss program that gets called for any ray that did not have a
-	// valid intersection
-	//
-	// as with the anyhit/closest hit programs, in this example we only
-	// need to have _some_ dummy function to set up a valid SBT
-	// ------------------------------------------------------------------------------
-
-	extern "C" __global__ void __miss__photon()
-	{
-	}
+	// not used
+	extern "C" __global__ void __anyhit__photon() {}
+	extern "C" __global__ void __miss__photon() {}
 
 	//------------------------------------------------------------------------------
 	// ray gen program - the actual rendering happens in here
