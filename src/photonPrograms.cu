@@ -74,6 +74,7 @@ namespace osc {
 		const vec3f& B = sbtData.vertex[index.y];
 		const vec3f& C = sbtData.vertex[index.z];
 		vec3f Ng = cross(B - A, C - A);
+		Ng = normalize(Ng);
 
 		// ------------------------------------------------------------------
 		// compute ray intersection point
@@ -86,13 +87,8 @@ namespace osc {
 		// ------------------------------------------------------------------
 		// face-forward and normalize normals
 		// ------------------------------------------------------------------
-		if (dot(rayDir, Ng) > 0.f) Ng = -Ng;
-		Ng = normalize(Ng);
-		//printf("hit %f %f %f normal %f %f %f\n",
-		//	hitPoint.x, hitPoint.y, hitPoint.z,
-		//	Ng.x, Ng.y, Ng.z
-		//);
-
+		float cosi = dot(rayDir, Ng);
+		if (cosi > 0.f) Ng = -Ng;
 
 		int rand_index = prd.random() * optixLaunchParams.numPhotonSamples;
 		//int rand_index = (ix * prd.depth + 1) % NUM_PHOTON_SAMPLES;
@@ -123,16 +119,12 @@ namespace osc {
 				//atomicAdd(&optixLaunchParams.pmCount[hashId], 1);
 			}
 
-			//if (prd.depth == 3) {
-			//	PhotonPrint pp;
-			//	pp.position = hitPoint;
-			//	pp.power = prd.power;
-			//	optixLaunchParams.prePhotonMap[ix * MAX_DEPTH + prd.depth - 1] = pp;
-			//}
-
 			if (prd.depth <= optixLaunchParams.maxDepth) {
-				uint32_t u0, u1;
-				packPointer(&prd, u0, u1);
+
+				PhotonPRD diffuse;
+				diffuse.random = prd.random;
+				diffuse.depth = prd.depth;
+				diffuse.currentIor = prd.currentIor;
 
 				// obtain random direction
 				vec3f U, V, W, direction;
@@ -140,13 +132,19 @@ namespace osc {
 
 				sampleUnitHemisphere(optixLaunchParams.halton[rand_index], U, V, W, direction);
 
+				diffuse.power = (prd.power * sbtData.color) / Pd;
 				prd.power = (prd.power * sbtData.color) / Pd;
+				printf("%f %f %f otro %f %f %f\n", diffuse.power.x, diffuse.power.y, diffuse.power.z, prd.power.x, prd.power.y, prd.power.z);
+
+				uint32_t u0, u1;
+				//packPointer(&prd, u0, u1);
+				packPointer(&diffuse, u0, u1);
 
 				optixTrace(
 					optixLaunchParams.traversable,
 					hitPoint,
 					direction,
-					1.e-4f, // tmin
+					1.e-4f,							// tmin
 					1e20f,							// tmax
 					0.0f,							// rayTime
 					OptixVisibilityMask(255),
@@ -169,19 +167,25 @@ namespace osc {
 			// specular
 
 			if (prd.depth <= optixLaunchParams.maxDepth) {
+				PhotonPRD reflection;
+				reflection.random = prd.random;
+				reflection.depth = prd.depth;
+				reflection.currentIor = prd.currentIor;
 				uint32_t u0, u1;
-				packPointer(&prd, u0, u1);
+				//packPointer(&prd, u0, u1);
+				packPointer(&reflection, u0, u1);
 
 				// obtain reflection direction
 				vec3f reflectDir = reflect(rayDir, Ng); //rayo en la direccion de reflexion desde punto;
 
-				prd.power = (prd.power * sbtData.specular) / Ps;
+				//prd.power = (prd.power * sbtData.specular) / Ps;
+				reflection.power = (prd.power * sbtData.specular) / Ps;
 
 				optixTrace(
 					optixLaunchParams.traversable,
 					hitPoint,
 					reflectDir,
-					1.e-4f, // tmin
+					1.e-4f,							// tmin
 					1e20f,							// tmax
 					0.0f,							// rayTime
 					OptixVisibilityMask(255),
@@ -197,44 +201,50 @@ namespace osc {
 			// transmission
 
 			if (prd.depth <= optixLaunchParams.maxDepth) {
+				PhotonPRD refraction;
+				refraction.random = prd.random;
+				refraction.depth = prd.depth;
+				refraction.currentIor = prd.currentIor;
 
 				uint32_t u0, u1;
-				packPointer(&prd, u0, u1);
+				packPointer(&refraction, u0, u1);
+				//packPointer(&prd, u0, u1);
 
-				float nit;
-				float cosi = dot(rayDir, Ng);
-
-				if (cosi < 0) { // ray comes from outside surface
-					nit = prd.currentIor / sbtData.ior;
+				/*float cosi = dot(rayDir, Ng);*/
+				float etai = 1, etat = sbtData.ior;
+				vec3f n = Ng;
+				if (cosi < 0) {
 					cosi = -cosi;
-					prd.currentIor = sbtData.ior;
 				}
-				else { // ray comes from inside surface
-					nit = sbtData.ior;
+				else {
+					float tmp = etai;
+					etai = etat;
+					etat = tmp;
+					//n = -Ng; already done before
+					//printf("inside");
 				}
 
-				float testrit = nit * nit * (1 - cosi * cosi);
+				float eta = etai / etat;
+				float k = 1 - eta * eta * (1 - cosi * cosi);
+				if (k >= 0) {
+					vec3f refrDir = eta * rayDir + (eta * cosi - sqrtf(k)) * n;
 
-
-				if (testrit <= 1) {
-					// obtain refraction direction
-					vec3f refractionDir = nit * rayDir + (nit * cosi - sqrtf(1 - testrit)) * Ng;
-
-					prd.power = (prd.power * sbtData.transmission) / Pt;
-
+					refraction.power = (prd.power * sbtData.transmission) / Pt;
+					//prd.power = (prd.power * sbtData.transmission) / Pt;
+				
 					optixTrace(
-						optixLaunchParams.traversable,
-						hitPoint,
-						refractionDir,
-						1e-4f,							// tmin
-						1e20f,							// tmax
-						0.0f,							// rayTime
-						OptixVisibilityMask(255),
-						OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
-						PHOTON_RAY_TYPE,				// SBT offset
-						RAY_TYPE_COUNT,					// SBT stride
-						PHOTON_RAY_TYPE,				// missSBTIndex
-						u0, u1
+					optixLaunchParams.traversable,
+					hitPoint,
+					refrDir,
+					1e-4f,							// tmin
+					1e20f,							// tmax
+					0.0f,							// rayTime
+					OptixVisibilityMask(255),
+					OPTIX_RAY_FLAG_DISABLE_ANYHIT,	// OPTIX_RAY_FLAG_NONE,
+					PHOTON_RAY_TYPE,				// SBT offset
+					RAY_TYPE_COUNT,					// SBT stride
+					PHOTON_RAY_TYPE,				// missSBTIndex
+					u0, u1
 					);
 				}
 			}
@@ -251,11 +261,6 @@ namespace osc {
 				//optixLaunchParams.pm[hashId] = pp;
 				//atomicAdd(&optixLaunchParams.pmCount[hashId], 1);
 			}
-
-			//printf("hit %f %f %f normal %f %f %f depth %i\n",
-			//	hitPoint.x, hitPoint.y, hitPoint.z,
-			//	Ng.x, Ng.y, Ng.z, prd.depth
-			//);
 		}
 
 
@@ -290,18 +295,11 @@ namespace osc {
 		// compute a test pattern based on pixel ID
 		const int ix = optixGetLaunchIndex().x;
 
-		Random ran;
-		ran.init(ix, ix * optixLaunchParams.frame.size.x);
-		//printf("%f", optixLaunchParams.gridSize.x);
-
-		//printf("\n random 1: %f 2: %f 3: %f ix: %d hax: %f hay: %f\n", ran(), ran(), ran(), ix, optixLaunchParams.halton[ix].x, optixLaunchParams.halton[ix].y);
-
 		PhotonPRD prd;
 		prd.random.init(ix, ix * optixLaunchParams.frame.size.x);
 		prd.depth = 0;
 		prd.power = optixLaunchParams.light.photonPower;
-		prd.currentIor = 1;
-		//printf("power photon %f %f %f \n", prd.power.x, prd.power.y, prd.power.z);
+		prd.currentIor = 1.f;
 
 		uint32_t u0, u1;
 		packPointer(&prd, u0, u1);
@@ -309,15 +307,7 @@ namespace osc {
 		// obtain random direction
 		vec3f U, V, W, direction;
 		create_onb(optixLaunchParams.light.normal, U, V, W);
-		//printf("U %f %f %f V %f %f %f W %f %f %f\n", U.x, U.y, U.z, V.x, V.y, V.z, W.x, W.y, W.z);
-
 		sampleUnitHemisphere(optixLaunchParams.halton[ix], U, V, W, direction);
-
-		//printf("hit %f %f %f dir %f %f %f normal %f %f %f depth %i\n",
-		//	optixLaunchParams.light.origin.x, optixLaunchParams.light.origin.y, optixLaunchParams.light.origin.z,
-		//	direction.x, direction.y, direction.z,
-		//	optixLaunchParams.light.normal.x, optixLaunchParams.light.normal.y, optixLaunchParams.light.normal.z, prd.depth
-		//);
 
 		optixTrace(
 			optixLaunchParams.traversable,
@@ -334,8 +324,6 @@ namespace osc {
 			//prd.depth						// reinterpret_cast<unsigned int&>(prd.depth)
 			u0, u1
 		);
-
-		//printf("profundidad %i\n", prd.depth);
 	}
 
 } // ::osc
