@@ -42,8 +42,12 @@ namespace osc {
 			const Camera& camera,
 			const PointLight& light,
 			const float worldScale,
-			std::string objFileName)
-			: GLFCameraWindow(title, camera.from, camera.at, camera.up, worldScale), sample(model, light, objFileName)
+			std::string objFileName,
+			int numPhotonSamples, 
+			int maxDepth, 
+			float radius, 
+			int antialiasingLevel)
+			: GLFCameraWindow(title, camera.from, camera.at, camera.up, worldScale), sample(model, light, objFileName, numPhotonSamples, maxDepth, radius, antialiasingLevel)
 		{
 			sample.setCamera(camera);
 		}
@@ -278,8 +282,9 @@ namespace osc {
 			// camera knows how much to move for any given user interaction:
 			const float worldScale = length(model->bounds.span());
 
-			SampleWindow* window = new SampleWindow("Optix 7 Course Example", model, camera, light, worldScale, objFileName);
-			window->sample.setParams(numPhotonSamples, maxDepth, radius, antialiasingLevel);
+			SampleWindow* window = new SampleWindow("Optix 7 Course Example", model, camera, light, worldScale, 
+				objFileName, numPhotonSamples, maxDepth, radius, antialiasingLevel);
+			//window->sample.setParams(numPhotonSamples, maxDepth, radius, antialiasingLevel);
 			
 			auto finish = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<double> elapsed = finish - start;

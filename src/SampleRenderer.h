@@ -46,7 +46,8 @@ namespace osc {
 	public:
 		/*! constructor - performs all setup, including initializing
 		  optix, creates module, pipeline, programs, SBT, etc. */
-		SampleRenderer(const Model* model, const PointLight& light, std::string objFileName);
+		SampleRenderer(const Model* model, const PointLight& light, std::string objFileName,
+			int numPhotonSamples, int maxDepth, float radius, int antialiasingLevel);
 
 		/*! render one frame */
 		void render();

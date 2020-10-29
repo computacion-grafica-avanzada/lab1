@@ -64,12 +64,17 @@ namespace osc
 
 	/*! constructor - performs all setup, including initializing
 		  optix, creates module, pipeline, programs, SBT, etc. */
-	SampleRenderer::SampleRenderer(const Model* model, const PointLight& light, std::string objFileName)
+	SampleRenderer::SampleRenderer(const Model* model, const PointLight& light, std::string objFileName,
+		int numPhotonSamples, int maxDepth, float radius, int antialiasingLevel)
 		: model(model)
 	{
 		initOptix();
 
 		launchParams.objFileName = objFileName.c_str();
+		launchParams.numPhotonSamples = numPhotonSamples;
+		launchParams.maxDepth = maxDepth;
+		launchParams.maxRadius = radius;
+		launchParams.antialiasingLevel = antialiasingLevel;
 
 		std::cout << "#osc: setting hash grid ..." << std::endl;
 		vec3f cells = model->bounds.size() / vec3f(launchParams.maxRadius);
@@ -1051,17 +1056,15 @@ namespace osc
 
 		launchParams.onlyPhotons = false;
 
-		auto finish = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double> elapsed = finish - start;
-		if (launchParams.frame.accumID <= 2)
-			std::cout << "Render pass elapsed time: " << elapsed.count() << " s\n";
-
-
 		// sync - make sure the frame is rendered before we download and
 		// display (obviously, for a high-performance application you
 		// want to use streams and double-buffering, but for this simple
 		// example, this will have to do)
 		CUDA_SYNC_CHECK();
+		auto finish = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> elapsed = finish - start;
+		if (launchParams.frame.accumID <= 2)
+			std::cout << "Render pass elapsed time: " << elapsed.count() << " s\n";
 	}
 
 	/*! set camera to render with */
