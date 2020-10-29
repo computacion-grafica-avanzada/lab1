@@ -183,7 +183,7 @@ namespace osc {
 		return atoll(number_s.c_str());
 	}
 
-	void loadParams(string& objFileName, vec3f& lightPos, vec3f& lightDir, vec3f& lightPower, int& numPhotonSamples, int& maxDepth, float& radius)
+	void loadParams(string& objFileName, vec3f& cameraPos, vec3f& cameraUp, vec3f& lightPos, vec3f& lightDir, vec3f& lightPower, int& numPhotonSamples, int& maxDepth, float& radius)
 	{
 		char character;
 		FILE* file;
@@ -195,6 +195,16 @@ namespace osc {
 			{
 				objFileName.push_back(character);
 			}
+
+			// Read camera pos
+			cameraPos.x = readFloat(file);
+			cameraPos.y = readFloat(file);
+			cameraPos.z = readFloat(file);
+
+			// Read camera up
+			cameraUp.x = readFloat(file);
+			cameraUp.y = readFloat(file);
+			cameraUp.z = readFloat(file);
 
 			// Read light pos
 			lightPos.x = readFloat(file);
@@ -235,6 +245,8 @@ namespace osc {
 	{
 		try {
 			string objFileName;
+			vec3f cameraPos;
+			vec3f cameraUp;
 			vec3f lightPos;
 			vec3f lightDir;
 			vec3f lightPower;
@@ -242,14 +254,14 @@ namespace osc {
 			int maxDepth;
 			float radius;
 
-			loadParams(objFileName, lightPos, lightDir, lightPower, numPhotonSamples, maxDepth, radius);
+			loadParams(objFileName, cameraPos, cameraUp, lightPos, lightDir, lightPower, numPhotonSamples, maxDepth, radius);
 
 			Model* model = loadOBJ(objFileName);
 
 			Camera camera = {
-				/*from*/vec3f(0.f, 1.f, 5.f),
+				/*from*/cameraPos,
 				/* at */model->bounds.center(),
-				/* up */vec3f(0.f,1.f,0.f)
+				/* up */cameraUp
 			};
 
 			// some simple, hard-coded light ... obviously, only works for sponza
