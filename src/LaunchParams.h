@@ -118,6 +118,7 @@ namespace osc
 		OptixTraversableHandle traversable;
 
 		bool onlyPhotons;
+		const char* objFileName;
 	};
 
 } // namespace osc
