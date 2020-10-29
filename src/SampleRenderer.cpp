@@ -63,10 +63,12 @@ namespace osc
 
 	/*! constructor - performs all setup, including initializing
 		  optix, creates module, pipeline, programs, SBT, etc. */
-	SampleRenderer::SampleRenderer(const Model* model, const PointLight& light)
+	SampleRenderer::SampleRenderer(const Model* model, const PointLight& light, std::string objFileName)
 		: model(model)
 	{
 		initOptix();
+
+		launchParams.objFileName = objFileName.c_str();
 
 		std::cout << "#osc: setting hash grid ..." << std::endl;
 		vec3f cells = model->bounds.size() / vec3f(launchParams.maxRadius);
@@ -1104,8 +1106,29 @@ passed to trace. */
 		launchParams.onlyPhotons = true;
 	}
 
+	std::string SampleRenderer::getConfigStr() {
+		std::string file(launchParams.objFileName);
+
+		//http://www.cplusplus.com/reference/string/string/find_last_of/
+		std::cout << "Splitting: " << file << '\n';
+		std::size_t found = file.find_last_of("/\\");
+		std::size_t ext = file.find_last_of(".");
+		std::cout << " path: " << file.substr(0, found) << '\n';
+		std::cout << " file: " << file.substr(found + 1) << '\n';
+
+		return file.substr(found + 1)
+			+ "_pos" + to_string(launchParams.light.origin.x) + to_string(launchParams.light.origin.y) + to_string(launchParams.light.origin.z)
+			+ "_dir" + to_string(launchParams.light.normal.x) + to_string(launchParams.light.normal.y) + to_string(launchParams.light.normal.z)
+			+ "_pwr" + to_string(launchParams.light.intensity.x) + to_string(launchParams.light.intensity.y) + to_string(launchParams.light.intensity.z)
+			+ "_ps" + to_string(launchParams.numPhotonSamples) 
+			+ "_md" + to_string(launchParams.maxDepth) 
+			+ "_r" + to_string(launchParams.maxRadius)
+			+ ".data";
+	}
+
 	void SampleRenderer::savePhotonMap(vector<PhotonPrint> photons, vector<int> counts, vector<int> starts) {
-		std::string traces_path("../../traces");
+		std::string config = getConfigStr();
+		std::string traces_path("../../traces_" + config);
 		std::ofstream TRACES(traces_path, std::ios::out | std::ofstream::binary);
 		// https://stackoverflow.com/questions/28492517/write-and-load-vector-of-structs-in-a-binary-file-c
 		typename vector<PhotonPrint>::size_type size = photons.size();
@@ -1113,12 +1136,12 @@ passed to trace. */
 		TRACES.write((char*)&photons[0], photons.size() * sizeof(PhotonPrint));
 		TRACES.close();
 
-		std::string starts_path("../../starts");
+		std::string starts_path("../../starts_" + config);
 		std::ofstream STARTS(starts_path, std::ios::out | std::ofstream::binary);
 		std::copy(starts.begin(), starts.end(), std::ostream_iterator<int>{STARTS, " "});
 		STARTS.close();
 
-		std::string counts_path("../../counts");
+		std::string counts_path("../../counts_" + config);
 		std::ofstream COUNTS(counts_path, std::ios::out | std::ofstream::binary);
 		std::copy(counts.begin(), counts.end(), std::ostream_iterator<int>{COUNTS, " "});
 		COUNTS.close();
@@ -1126,9 +1149,9 @@ passed to trace. */
 
 	bool SampleRenderer::loadPhotonMap(vector<PhotonPrint>& photons, vector<int>& counts, vector<int>& starts) {
 		bool ok = true;
-
+		std::string config = getConfigStr();
 		// load photon traces
-		std::string traces_path("../../traces");
+		std::string traces_path("../../traces_" + config);
 		std::ifstream TRACES(traces_path, std::ios::in | std::ifstream::binary);
 		ok = ok && TRACES.good();
 		if (TRACES.good()) {
@@ -1140,7 +1163,7 @@ passed to trace. */
 		}
 
 		// load photon starts
-		std::string starts_path("../../starts");
+		std::string starts_path("../../starts_" + config);
 		std::ifstream STARTS(starts_path, std::ios::in | std::ifstream::binary);
 		ok = ok && STARTS.good();
 		std::istream_iterator<int> iter_starts{ STARTS };
@@ -1150,7 +1173,7 @@ passed to trace. */
 		STARTS.close();
 
 		// load photon counts
-		std::string counts_path("../../counts");
+		std::string counts_path("../../counts_" + config);
 		std::ifstream COUNTS(counts_path, std::ios::in | std::ifstream::binary);
 		ok = ok && COUNTS.good();
 		std::istream_iterator<int> iter_counts{ COUNTS };

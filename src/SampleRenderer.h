@@ -46,7 +46,7 @@ namespace osc {
 	public:
 		/*! constructor - performs all setup, including initializing
 		  optix, creates module, pipeline, programs, SBT, etc. */
-		SampleRenderer(const Model* model, const PointLight& light);
+		SampleRenderer(const Model* model, const PointLight& light, std::string objFileName);
 
 		/*! render one frame */
 		void render();
@@ -110,6 +110,8 @@ namespace osc {
 
 		/*! upload textures, and create cuda texture objects for them */
 		void createTextures();
+
+		std::string getConfigStr();
 
 		bool loadPhotonMap(std::vector<PhotonPrint> &photons, std::vector<int> &counts, std::vector<int> &starts);
 		void savePhotonMap(std::vector<PhotonPrint> photons, std::vector<int> counts, std::vector<int> starts);

@@ -217,7 +217,7 @@ namespace osc {
 		// ------------------------------------------------------------------
 		float cosi = dot(rayDir, Ng);
 		if (cosi > 0.f) Ng = -Ng;
-
+		
 		// start with some ambient term
 		vec3f pixelColor(0.f);
 
@@ -368,25 +368,25 @@ namespace osc {
 					if (k >= 0) {
 						vec3f refrDir = eta * rayDir + (eta * cosi - sqrtf(k)) * n;
 
-					uint32_t u0, u1;
-					packPointer(&refraction, u0, u1);
+						uint32_t u0, u1;
+						packPointer(&refraction, u0, u1);
 
-					optixTrace(optixLaunchParams.traversable,
-						hitPoint,
-						refrDir,
-						1e-4f,  // tmin
-						1e20f,  // tmax
-						0.0f,   // rayTime
-						OptixVisibilityMask(255),
-						OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
-						RADIANCE_RAY_TYPE,            // SBT offset
-						RAY_TYPE_COUNT,               // SBT stride
-						RADIANCE_RAY_TYPE,            // missSBTIndex 
-						u0, u1
-					);
-					pixelColor += sbtData.transmission * refraction.pixelColor;
+						optixTrace(optixLaunchParams.traversable,
+							hitPoint,
+							refrDir,
+							1e-4f,  // tmin
+							1e20f,  // tmax
+							0.0f,   // rayTime
+							OptixVisibilityMask(255),
+							OPTIX_RAY_FLAG_DISABLE_ANYHIT,//OPTIX_RAY_FLAG_NONE,
+							RADIANCE_RAY_TYPE,            // SBT offset
+							RAY_TYPE_COUNT,               // SBT stride
+							RADIANCE_RAY_TYPE,            // missSBTIndex 
+							u0, u1
+						);
+						pixelColor += sbtData.transmission * refraction.pixelColor;
+					}
 				}
-			}
 			}
 		}
 		prd.pixelColor = pixelColor;

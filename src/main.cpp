@@ -40,8 +40,9 @@ namespace osc {
 			const Model* model,
 			const Camera& camera,
 			const PointLight& light,
-			const float worldScale)
-			: GLFCameraWindow(title, camera.from, camera.at, camera.up, worldScale), sample(model, light)
+			const float worldScale,
+			std::string objFileName)
+			: GLFCameraWindow(title, camera.from, camera.at, camera.up, worldScale), sample(model, light, objFileName)
 		{
 			sample.setCamera(camera);
 		}
@@ -264,7 +265,7 @@ namespace osc {
 			// camera knows how much to move for any given user interaction:
 			const float worldScale = length(model->bounds.span());
 
-			SampleWindow* window = new SampleWindow("Optix 7 Course Example", model, camera, light, worldScale);
+			SampleWindow* window = new SampleWindow("Optix 7 Course Example", model, camera, light, worldScale, objFileName);
 			window->sample.setParams(numPhotonSamples, maxDepth, radius);
 			window->run();
 		}
