@@ -62,7 +62,7 @@ namespace osc {
 		void setCamera(const Camera& camera);
 
 		/*! set the params to render with */
-		void setParams(int numPhotonSamples, int maxDepth, float radius);
+		void setParams(int numPhotonSamples, int maxDepth, float radius, int antialiasingLevel);
 
 		/*! perform the first pass of photon mapping */
 		void photonPass();
@@ -113,7 +113,7 @@ namespace osc {
 
 		std::string getConfigStr();
 
-		bool loadPhotonMap(std::vector<PhotonPrint> &photons, std::vector<int> &counts, std::vector<int> &starts);
+		bool loadPhotonMap(std::vector<PhotonPrint>& photons, std::vector<int>& counts, std::vector<int>& starts);
 		void savePhotonMap(std::vector<PhotonPrint> photons, std::vector<int> counts, std::vector<int> starts);
 	protected:
 		/*! @{ CUDA device context and stream that optix pipeline will run

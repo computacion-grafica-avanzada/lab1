@@ -95,6 +95,7 @@ namespace osc
 		int numPhotonSamples = NUM_PHOTON_SAMPLES;
 		int maxDepth = MAX_DEPTH;
 		float maxRadius = MAX_RADIUS;
+		int antialiasingLevel;
 
 		vec2f* halton;
 

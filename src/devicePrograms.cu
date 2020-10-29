@@ -217,7 +217,7 @@ namespace osc {
 		// ------------------------------------------------------------------
 		float cosi = dot(rayDir, Ng);
 		if (cosi > 0.f) Ng = -Ng;
-		
+
 		// start with some ambient term
 		vec3f pixelColor(0.f);
 
@@ -352,9 +352,10 @@ namespace osc {
 					/*float cosi = dot(rayDir, Ng);*/
 					float etai = 1, etat = sbtData.ior;
 					vec3f n = Ng;
-					if (cosi < 0) { 
-						cosi = -cosi; 
-					} else {
+					if (cosi < 0) {
+						cosi = -cosi;
+					}
+					else {
 						float tmp = etai;
 						etai = etat;
 						etat = tmp;
@@ -448,7 +449,7 @@ namespace osc {
 		//printf("int %i\n", optixLaunchParams.solo[0]);
 		//int numPixelSamples = 1; // 4; //NUM_PIXEL_SAMPLES;
 
-		int antialiasingLevel = 10;
+		int antialiasingLevel = optixLaunchParams.antialiasingLevel;
 		int numPixelSamples = antialiasingLevel * antialiasingLevel;
 		float cellWidth = 1.f / antialiasingLevel;
 		float increment = cellWidth * 0.5;

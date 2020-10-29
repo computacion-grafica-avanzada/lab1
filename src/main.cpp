@@ -184,7 +184,8 @@ namespace osc {
 		return atoll(number_s.c_str());
 	}
 
-	void loadParams(string& objFileName, vec3f& cameraPos, vec3f& cameraUp, vec3f& lightPos, vec3f& lightDir, vec3f& lightPower, int& numPhotonSamples, int& maxDepth, float& radius)
+	void loadParams(string& objFileName, vec3f& cameraPos, vec3f& cameraUp, vec3f& lightPos, vec3f& lightDir, vec3f& lightPower,
+		int& numPhotonSamples, int& maxDepth, float& radius, int& antialiasingLevel)
 	{
 		char character;
 		FILE* file;
@@ -231,6 +232,9 @@ namespace osc {
 			// Read radius
 			radius = readFloat(file);
 
+			// Read antialiasing level
+			antialiasingLevel = readInt(file);
+
 			fclose(file);
 		}
 		else
@@ -254,8 +258,9 @@ namespace osc {
 			int numPhotonSamples;
 			int maxDepth;
 			float radius;
+			int antialiasingLevel;
 
-			loadParams(objFileName, cameraPos, cameraUp, lightPos, lightDir, lightPower, numPhotonSamples, maxDepth, radius);
+			loadParams(objFileName, cameraPos, cameraUp, lightPos, lightDir, lightPower, numPhotonSamples, maxDepth, radius, antialiasingLevel);
 
 			Model* model = loadOBJ(objFileName);
 
@@ -278,7 +283,7 @@ namespace osc {
 			const float worldScale = length(model->bounds.span());
 
 			SampleWindow* window = new SampleWindow("Optix 7 Course Example", model, camera, light, worldScale, objFileName);
-			window->sample.setParams(numPhotonSamples, maxDepth, radius);
+			window->sample.setParams(numPhotonSamples, maxDepth, radius, antialiasingLevel);
 			window->run();
 		}
 		catch (std::runtime_error& e) {

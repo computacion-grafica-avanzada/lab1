@@ -1062,11 +1062,12 @@ passed to trace. */
 			launchParams.camera.direction));
 	}
 
-	void SampleRenderer::setParams(int numPhotonSamples, int maxDepth, float radius)
+	void SampleRenderer::setParams(int numPhotonSamples, int maxDepth, float radius, int antialiasingLevel)
 	{
 		launchParams.numPhotonSamples = numPhotonSamples;
 		launchParams.maxDepth = maxDepth;
 		launchParams.maxRadius = radius;
+		launchParams.antialiasingLevel = antialiasingLevel;
 	}
 
 	/*! resize frame buffer to given resolution */
@@ -1120,8 +1121,8 @@ passed to trace. */
 			+ "_pos" + to_string(launchParams.light.origin.x) + to_string(launchParams.light.origin.y) + to_string(launchParams.light.origin.z)
 			+ "_dir" + to_string(launchParams.light.normal.x) + to_string(launchParams.light.normal.y) + to_string(launchParams.light.normal.z)
 			+ "_pwr" + to_string(launchParams.light.intensity.x) + to_string(launchParams.light.intensity.y) + to_string(launchParams.light.intensity.z)
-			+ "_ps" + to_string(launchParams.numPhotonSamples) 
-			+ "_md" + to_string(launchParams.maxDepth) 
+			+ "_ps" + to_string(launchParams.numPhotonSamples)
+			+ "_md" + to_string(launchParams.maxDepth)
 			+ "_r" + to_string(launchParams.maxRadius)
 			+ ".data";
 	}
