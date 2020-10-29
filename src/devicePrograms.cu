@@ -224,7 +224,7 @@ namespace osc {
 		// ------------------------------------------------------------------
 		// compute multiple diffuse
 		// ------------------------------------------------------------------
-		if (sbtData.color != vec3f(0)) {
+		if (sbtData.color != vec3f(0) && (cosi <= 0.f)) {
 			float radius;
 			if (optixLaunchParams.onlyPhotons)
 			{
