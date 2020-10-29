@@ -251,7 +251,7 @@ namespace osc {
 		}
 		else {
 			// absorption check if need to store diffuse photons
-			if (prd.depth > 1) {
+			if (prd.depth > 1 && sbtData.color != vec3f(0)) {
 				PhotonPrint pp;
 				pp.position = hitPoint;
 				pp.power = prd.power;
