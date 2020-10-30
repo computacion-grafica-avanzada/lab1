@@ -7,7 +7,6 @@ build
 *.gz
 *.zip
 Session.vim
-/models/*
 *.swp
 .vs
 Release
@@ -19,3 +18,4 @@ cmake_install.cmake
 CMakeCache
 CMakeFiles
 results
+models

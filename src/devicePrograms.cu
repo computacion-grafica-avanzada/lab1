@@ -137,7 +137,6 @@ namespace osc {
 			minimo(optixLaunchParams.gridSize.z - 1, (int)maxPoint.z)
 		);
 
-		int count = 0;
 		for (int x = from.x; x <= to.x; x++) {
 			for (int y = from.y; y <= to.y; y++) {
 				for (int z = from.z; z <= to.z; z++) {

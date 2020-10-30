@@ -176,6 +176,7 @@ namespace osc
 		std::vector<int> pmGridStarts(totalCells, 0);
 		std::vector<PhotonPrint> traces;
 		if (loadPhotonMap(traces, pmGridCount, pmGridStarts)) {
+			std::cout << "Loading photon map" << '\n';
 			// upload buffers to GPU
 			pmStarts.alloc_and_upload(pmGridStarts);
 			launchParams.pmStarts = (int*)pmStarts.d_pointer();
@@ -1167,7 +1168,6 @@ namespace osc
 	}
 
 	bool SampleRenderer::loadPhotonMap(vector<PhotonPrint>& photons, vector<int>& counts, vector<int>& starts) {
-		std::cout << "Loading photon map" << '\n';
 		bool ok = true;
 		std::string config = getConfigStr();
 		// load photon traces

@@ -1,10 +1,10 @@
-../../models/CornellBox-Sphere-RG.obj
+../../models/CornellBox-Sphere-Table2.obj
 0.0 1.0 5.0
 0.0 1.0 0.0
-0 1.98 0
+0 1.99 0
 0 -1 0
 2.0 2.0 2.0
-100000
+1000000
 10
 0.1
-5
+10
