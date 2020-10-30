@@ -18,7 +18,6 @@
 
 #include "gdt/math/vec.h"
 #include "optix7.h"
-#include "Photon.h"
 
 #define MAX_RADIUS 0.1
 #define MAX_RADIUS_ONLY_PHOTONS 0.005

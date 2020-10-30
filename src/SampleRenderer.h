@@ -20,7 +20,6 @@
 #include "CUDABuffer.h"
 #include "LaunchParams.h"
 #include "Model.h"
-#include "Photon.h"
 
 /*! \namespace osc - Optix Siggraph Course */
 namespace osc {

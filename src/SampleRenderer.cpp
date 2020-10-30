@@ -19,7 +19,6 @@
 // this include may only appear in a single source file:
 #include <optix_function_table_definition.h>
 #include "halton.h"
-#include "PhotonMap.h"
 #include "halton_seq.h"
 
 #include <algorithm>

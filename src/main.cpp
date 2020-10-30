@@ -19,8 +19,7 @@
 // our helper library for window handling
 #include "glfWindow/GLFWindow.h"
 #include <GL/gl.h>
-
-#include "PhotonMap.h"
+#include "Model.h"
 #include "halton_seq.h"
 #include <ctime>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -161,7 +160,7 @@ namespace osc {
 
 	float readFloat(FILE* file)
 	{
-		string number_s;
+		std::string number_s;
 		char character;
 
 		character = fgetc(file);
@@ -176,7 +175,7 @@ namespace osc {
 
 	int readInt(FILE* file)
 	{
-		string number_s;
+		std::string number_s;
 		char character;
 
 		character = fgetc(file);
@@ -189,7 +188,7 @@ namespace osc {
 		return atoll(number_s.c_str());
 	}
 
-	void loadParams(string& objFileName, vec3f& cameraPos, vec3f& cameraUp, vec3f& lightPos, vec3f& lightDir, vec3f& lightPower,
+	void loadParams(std::string& objFileName, vec3f& cameraPos, vec3f& cameraUp, vec3f& lightPos, vec3f& lightDir, vec3f& lightPower,
 		int& numPhotonSamples, int& maxDepth, float& radius, int& antialiasingLevel)
 	{
 		char character;
@@ -255,7 +254,7 @@ namespace osc {
 	{
 		try {
 			auto start = std::chrono::high_resolution_clock::now();
-			string objFileName;
+			std::string objFileName;
 			vec3f cameraPos;
 			vec3f cameraUp;
 			vec3f lightPos;

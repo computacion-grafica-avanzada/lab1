@@ -33,13 +33,6 @@ add_executable(ex10_softShadows
   Model.cpp
   halton.h
   halton.cpp
-  Photon.h
-  Photon.cc
-  PhotonMap.h
-  PhotonMap.cc
-  PhotonsIterator.h
-  Vector3D.h
-  Vector3D.cpp
   Utils.h
   halton_seq.h
   main.cpp
